@@ -1,6 +1,7 @@
 #ifndef GAZE_H
 #define GAZE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct GazeCam GazeCam;
@@ -34,5 +35,13 @@ int gaze_get_mode(GazeCam *cam, uint8_t *b0, uint8_t *b1);
 int gaze_set_mode(GazeCam *cam, uint8_t b0, uint8_t b1);
 
 const char *gaze_error(void);
+
+/* Compact one-liner: "2e1a:4c04 z=100 p=0 t=0" */
+int gaze_line(GazeCam *cam, char *buf, size_t n);
+
+/* Run one command on an open cam. argv[0] is the verb. Writes gaze_line into out. */
+int gaze_cmd(GazeCam *cam, int argc, char **argv, char *out, size_t n);
+
+int gaze_mcp(void);
 
 #endif

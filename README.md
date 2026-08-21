@@ -13,8 +13,31 @@ just build
 ./gaze status
 ./gaze center
 ./gaze zoom 200
-./gaze track on
 ```
+
+## MCP
+
+One tool. One-line replies. The camera stays open. After a move you already have state — do not call `s` again.
+
+```json
+{
+  "mcpServers": {
+    "gaze": {
+      "command": "/absolute/path/to/gaze",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+| q | |
+|--|--|
+| `s` | status |
+| `c` | center |
+| `z 200` / `z +20` | zoom |
+| `p N` / `t N` | pan / tilt |
+
+Reply: `2e1a:4c04 z=200 p=0 t=0`
 
 ## Commands
 
