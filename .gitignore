@@ -1,0 +1,4 @@
+gaze
+*.o
+.DS_Store
+/tmp/
