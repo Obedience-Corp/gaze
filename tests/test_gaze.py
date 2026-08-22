@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Protocol tests always. Hardware tests follow whatever UVC camera is on the wire.
-
-Gimbal cases skip when the device has no pan/tilt. Zoom cases skip when it has
-no zoom. `just test-hw` refuses to pass if nothing is plugged in.
-
-Do not ask an agent to try it. Run `just test`.
-"""
+"""Implement workflow/design/gaze-cameras/TEST.md. Matrix over `gaze list`."""
 
 import argparse
 import json
@@ -20,7 +14,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GAZE = ROOT / "bin" / "gaze"
-OUT = Path("/tmp/gaze-test-see.jpg")
 
 
 def run(args, timeout=12, env=None):
@@ -65,13 +58,11 @@ def parse_status(text):
     first = text.splitlines()[0] if text.splitlines() else ""
     m = re.search(r"([0-9a-fA-F]{4}):([0-9a-fA-F]{4})", first)
     out["id"] = f"{m.group(1).lower()}:{m.group(2).lower()}" if m else ""
-    out["name"] = first.rsplit("  ", 1)[0].strip() if "  " in first else first
 
     def axis(key):
-        mm = re.search(rf"{key}\s+n/a", text)
-        if mm:
+        if re.search(rf"{key}\s+n/a", text):
             return None
-        mm = re.search(rf"{key}\s+(-?\d+)\s+\((-?-?\d+)[^\d]+(-?\d+)\)", text)
+        mm = re.search(rf"{key}\s+(-?\d+)\s+\((-?\d+)[^\d]+(-?\d+)\)", text)
         if not mm:
             return None
         return int(mm.group(1)), int(mm.group(2)), int(mm.group(3))
@@ -87,6 +78,42 @@ def parse_line(text):
     if not m:
         raise AssertionError(f"no z/p/t in {text!r}")
     return int(m.group(1)), int(m.group(2)), int(m.group(3))
+
+
+def cam_label(cam):
+    return f"{cam['name']} ({cam['id']})"
+
+
+def caps(cam):
+    bits = ["see"]
+    if cam["zoom"]:
+        bits.append("zoom")
+    if cam["pantilt"]:
+        bits.append("pan/tilt")
+    return " ".join(bits)
+
+
+def announce(cam, what):
+    print(f"#   {what:12}  {cam_label(cam)}", flush=True)
+
+
+def move_target(cur, amin, amax):
+    """TEST.md Move: one target, computed once."""
+    span = amax - amin
+    if span <= 0:
+        return cur
+    if cur <= amin:
+        return min(amax, amin + max(span // 4, 1))
+    if cur >= amax:
+        return max(amin, amax - max(span // 4, 1))
+    step = max(span // 50, 1)
+    nearer_min = (cur - amin) <= (amax - cur)
+    target = cur + step if nearer_min else cur - step
+    if target > amax:
+        target = amax
+    if target < amin:
+        target = amin
+    return target
 
 
 class Mcp:
@@ -148,9 +175,9 @@ class Protocol(unittest.TestCase):
     def test_help(self):
         p = run(["-h"])
         self.assertEqual(p.returncode, 0)
-        self.assertIn("mcp", p.stderr)
-        self.assertIn("see", p.stderr)
         self.assertIn("list", p.stderr)
+        self.assertIn("see", p.stderr)
+        self.assertIn("mcp", p.stderr)
 
     def test_mcp_handshake(self):
         mcp = Mcp()
@@ -170,184 +197,160 @@ class Protocol(unittest.TestCase):
             tools = mcp.call("tools/list")["result"]["tools"]
             self.assertEqual(len(tools), 1)
             self.assertEqual(tools[0]["name"], "g")
-            bad = mcp.call("nope")
-            self.assertEqual(bad["error"]["code"], -32601)
+            self.assertEqual(mcp.call("nope")["error"]["code"], -32601)
         finally:
             mcp.close()
 
-    def test_list_is_honest_when_empty_or_not(self):
+    def test_list_exit_matches_rows(self):
         p = run(["list"])
         cams = list_cameras()
         if cams:
             self.assertEqual(p.returncode, 0, p.stderr)
-            self.assertGreater(len(cams), 0)
         else:
             self.assertEqual(p.returncode, 1)
             self.assertIn("no UVC camera", p.stderr)
 
 
-def skip_no_cam():
-    cams = list_cameras()
+class Matrix(unittest.TestCase):
+    """One walk: camera outer, columns inner. TEST.md."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cams = list_cameras()
+        if not cls.cams:
+            raise unittest.SkipTest("no UVC camera on the wire")
+        print("\n# hardware plan:", flush=True)
+        for i, cam in enumerate(cls.cams, 1):
+            print(f"#   {i}. {cam_label(cam)}  [{caps(cam)}]", flush=True)
+
+    def test_matrix(self):
+        for cam in self.cams:
+            self._status(cam)
+            if cam["zoom"]:
+                self._zoom(cam)
+            else:
+                announce(cam, "zoom skip")
+            if cam["pantilt"]:
+                self._axis(cam, "pan")
+                self._axis(cam, "tilt")
+            else:
+                announce(cam, "pan skip")
+                announce(cam, "tilt skip")
+            self._see(cam)
+            self._mcp_see(cam)
+
+    def _status(self, cam):
+        with self.subTest(camera=cam_label(cam), column="status"):
+            announce(cam, "status")
+            p = run(["-d", cam["id"], "status"])
+            self.assertEqual(p.returncode, 0, p.stderr)
+            st = parse_status(p.stdout)
+            self.assertEqual(st["id"], cam["id"], p.stdout)
+            if cam["zoom"]:
+                self.assertIsNotNone(st["zoom"], p.stdout)
+            else:
+                self.assertIn("zoom    n/a", p.stdout)
+            if cam["pantilt"]:
+                self.assertIsNotNone(st["pan"], p.stdout)
+                self.assertIsNotNone(st["tilt"], p.stdout)
+            else:
+                self.assertIn("pan     n/a", p.stdout)
+
+    def _zoom(self, cam):
+        with self.subTest(camera=cam_label(cam), column="zoom"):
+            announce(cam, "zoom")
+            st = parse_status(run(["-d", cam["id"], "status"]).stdout)
+            cur, zmin, zmax = st["zoom"]
+            target = zmin + (zmax - zmin) // 2
+            if target == cur:
+                target = zmax if cur != zmax else zmin
+            try:
+                a = run(["-d", cam["id"], "zoom", str(target)])
+                self.assertEqual(a.returncode, 0, a.stderr)
+                z, _, _ = parse_line(a.stdout)
+                self.assertEqual(z, target, a.stdout)
+            finally:
+                run(["-d", cam["id"], "zoom", str(cur)])
+
+    def _axis(self, cam, axis):
+        with self.subTest(camera=cam_label(cam), column=axis):
+            announce(cam, axis)
+            st = parse_status(run(["-d", cam["id"], "status"]).stdout)
+            cur, amin, amax = st[axis]
+            target = move_target(cur, amin, amax)
+            try:
+                moved = run(["-d", cam["id"], axis, str(target)])
+                self.assertEqual(moved.returncode, 0, moved.stderr)
+                z, p, t = parse_line(moved.stdout)
+                got = p if axis == "pan" else t
+                if got == cur:
+                    time.sleep(0.2)
+                    st2 = parse_status(run(["-d", cam["id"], "status"]).stdout)
+                    got = st2[axis][0]
+                self.assertNotEqual(
+                    got,
+                    cur,
+                    f"{axis} advertised but SET did not change GET on {cam_label(cam)} "
+                    f"(was {cur}, target {target}, got {got})",
+                )
+            finally:
+                run(["-d", cam["id"], axis, str(cur)])
+
+    def _see(self, cam):
+        with self.subTest(camera=cam_label(cam), column="see"):
+            announce(cam, "see")
+            path = Path("/tmp") / f"gaze-test-see-{cam['id'].replace(':', '-')}.jpg"
+            if path.exists():
+                path.unlink()
+            p = run(["-d", cam["id"], "see", str(path)], timeout=20)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            data = path.read_bytes()
+            self.assertGreater(len(data), 2000, f"jpeg too small ({len(data)})")
+            self.assertEqual(data[:2], b"\xff\xd8")
+
+    def _mcp_see(self, cam):
+        with self.subTest(camera=cam_label(cam), column="mcp see"):
+            announce(cam, "mcp see")
+            mcp = Mcp(env={"GAZE_DEV": cam["id"]})
+            try:
+                mcp.call(
+                    "initialize",
+                    {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {},
+                        "clientInfo": {"name": "test", "version": "0"},
+                    },
+                )
+                mcp.send(
+                    {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                    expect=False,
+                )
+                result = mcp.g("v", timeout=20)["result"]
+                self.assertFalse(result.get("isError"), result)
+                img = next(c for c in result["content"] if c["type"] == "image")
+                raw = __import__("base64").b64decode(img["data"])
+                self.assertEqual(raw[:2], b"\xff\xd8")
+                self.assertGreater(len(raw), 2000)
+            finally:
+                mcp.close()
+
+
+def print_detected(cams):
+    print("# cameras detected:", flush=True)
     if not cams:
-        raise unittest.SkipTest("no UVC camera on the wire")
-    return cams
-
-
-class AnyUVC(unittest.TestCase):
-    """JPEG + status on whatever UVC camera is present (gimbal or not)."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.cams = skip_no_cam()
-        cls.dev = cls.cams[0]
-        print(
-            f"\n# AnyUVC using {cls.dev['id']} {cls.dev['name']} "
-            f"zoom={int(cls.dev['zoom'])} pantilt={int(cls.dev['pantilt'])}",
-            flush=True,
-        )
-
-    def test_status_names_the_device(self):
-        p = run(["-d", self.dev["id"], "status"])
-        self.assertEqual(p.returncode, 0, p.stderr)
-        st = parse_status(p.stdout)
-        self.assertEqual(st["id"], self.dev["id"])
-        if self.dev["zoom"]:
-            self.assertIsNotNone(st["zoom"])
-        else:
-            self.assertIn("zoom    n/a", p.stdout)
-        if self.dev["pantilt"]:
-            self.assertIsNotNone(st["pan"])
-            self.assertIsNotNone(st["tilt"])
-        else:
-            self.assertIn("pan     n/a", p.stdout)
-
-    def test_see_writes_jpeg(self):
-        if OUT.exists():
-            OUT.unlink()
-        p = run(["-d", self.dev["id"], "see", str(OUT)], timeout=20)
-        self.assertEqual(p.returncode, 0, p.stderr)
-        data = OUT.read_bytes()
-        self.assertGreater(len(data), 2000, f"jpeg too small ({len(data)})")
-        self.assertEqual(data[:2], b"\xff\xd8")
-
-    def test_mcp_see_returns_image(self):
-        mcp = Mcp(env={"GAZE_DEV": self.dev["id"]})
-        try:
-            mcp.call(
-                "initialize",
-                {
-                    "protocolVersion": "2025-03-26",
-                    "capabilities": {},
-                    "clientInfo": {"name": "test", "version": "0"},
-                },
-            )
-            mcp.send({"jsonrpc": "2.0", "method": "notifications/initialized"}, expect=False)
-            m = mcp.g("v", timeout=20)
-            result = m["result"]
-            self.assertFalse(result.get("isError"), result)
-            kinds = [c["type"] for c in result["content"]]
-            self.assertIn("image", kinds)
-            img = next(c for c in result["content"] if c["type"] == "image")
-            raw = __import__("base64").b64decode(img["data"])
-            self.assertEqual(raw[:2], b"\xff\xd8")
-            self.assertGreater(len(raw), 2000)
-        finally:
-            mcp.close()
-
-
-class Zoom(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cams = [c for c in skip_no_cam() if c["zoom"]]
-        if not cams:
-            raise unittest.SkipTest("no UVC zoom on any plugged-in camera")
-        cls.dev = cams[0]
-        print(f"\n# Zoom using {cls.dev['id']} {cls.dev['name']}", flush=True)
-
-    def test_zoom_roundtrip_uses_this_camera_range(self):
-        st = parse_status(run(["-d", self.dev["id"], "status"]).stdout)
-        cur, zmin, zmax = st["zoom"]
-        target = zmin + (zmax - zmin) // 2
-        if target == cur:
-            target = zmax if cur != zmax else zmin
-        try:
-            a = run(["-d", self.dev["id"], "zoom", str(target)])
-            self.assertEqual(a.returncode, 0, a.stderr)
-            z, _, _ = parse_line(a.stdout)
-            self.assertEqual(z, target, a.stdout)
-        finally:
-            run(["-d", self.dev["id"], "zoom", str(cur)])
-
-
-class Gimbal(unittest.TestCase):
-    """Mechanical or digital pan/tilt. Skips on clip-on webcams with no CT pan/tilt."""
-
-    @classmethod
-    def setUpClass(cls):
-        cams = [c for c in skip_no_cam() if c["pantilt"]]
-        if not cams:
-            raise unittest.SkipTest("no UVC pan/tilt on any plugged-in camera")
-        cls.dev = cams[0]
-        print(f"\n# Gimbal using {cls.dev['id']} {cls.dev['name']}", flush=True)
-
-    def _status(self):
-        p = run(["-d", self.dev["id"], "status"])
-        self.assertEqual(p.returncode, 0, p.stderr)
-        return parse_status(p.stdout)
-
-    def _nudge(self, axis, cur, amin, amax):
-        span = amax - amin
-        delta = max(span // 50, 1)
-        target = cur + delta
-        if target > amax:
-            target = cur - delta
-        if target < amin:
-            target = amin + (span // 4 if span else 0)
-        return target
-
-    def test_pan_moves_then_restores(self):
-        st = self._status()
-        cur, pmin, pmax = st["pan"]
-        target = self._nudge("pan", cur, pmin, pmax)
-        try:
-            moved = run(["-d", self.dev["id"], "pan", str(target)])
-            self.assertEqual(moved.returncode, 0, moved.stderr)
-            _, p1, _ = parse_line(moved.stdout)
-            self.assertNotEqual(p1, cur, f"pan did not move on {self.dev['id']}: {cur}")
-        finally:
-            run(["-d", self.dev["id"], "pan", str(cur)])
-
-    def test_tilt_moves_then_restores(self):
-        st = self._status()
-        cur, tmin, tmax = st["tilt"]
-        target = self._nudge("tilt", cur, tmin, tmax)
-        try:
-            moved = run(["-d", self.dev["id"], "tilt", str(target)])
-            self.assertEqual(moved.returncode, 0, moved.stderr)
-            _, _, t1 = parse_line(moved.stdout)
-            self.assertNotEqual(t1, cur, f"tilt did not move on {self.dev['id']}: {cur}")
-        finally:
-            run(["-d", self.dev["id"], "tilt", str(cur)])
+        print("#   (none)", flush=True)
+        return
+    for i, c in enumerate(cams, 1):
+        print(f"#   {i}. {cam_label(c)}  [{caps(c)}]", flush=True)
 
 
 if __name__ == "__main__":
     os.chdir(ROOT)
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--require-hw",
-        action="store_true",
-        help="fail if no UVC camera is plugged in (just test-hw)",
-    )
+    parser.add_argument("--require-hw", action="store_true")
     args, rest = parser.parse_known_args()
     cams = list_cameras()
-    print("# UVC cameras:", flush=True)
-    if not cams:
-        print("#   (none)", flush=True)
-    for c in cams:
-        print(
-            f"#   {c['id']}  {c['name']}  zoom={int(c['zoom'])} pantilt={int(c['pantilt'])}",
-            flush=True,
-        )
+    print_detected(cams)
     if args.require_hw and not cams:
         print("gaze test-hw: no UVC camera plugged in", file=sys.stderr)
         sys.exit(1)
