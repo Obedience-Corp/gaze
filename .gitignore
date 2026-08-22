@@ -2,3 +2,5 @@ gaze
 *.o
 .DS_Store
 /tmp/
+see.jpg
+tests/out/

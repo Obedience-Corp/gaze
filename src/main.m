@@ -18,7 +18,8 @@ static void usage(void) {
             "  gaze zoom <n|+n|-n>\n"
             "  gaze pan <n|+n|-n>\n"
             "  gaze tilt <n|+n|-n>\n"
-            "  gaze mcp          stdio MCP (one tool: g)\n"
+            "  gaze see [file]   JPEG from the sensor (turns the camera on)\n"
+            "  gaze mcp          stdio MCP (one tool: g; q=v returns the JPEG)\n"
             "\n"
             "Talks USB Video Class. Quit the vendor controller first.\n");
 }
@@ -72,6 +73,22 @@ int main(int argc, char **argv) {
     int rc = 0;
     if (strcmp(cmd, "status") == 0) {
         rc = cmd_status(cam);
+    } else if (strcmp(cmd, "see") == 0 || strcmp(cmd, "v") == 0) {
+        uint8_t *jpeg = NULL;
+        size_t n = 0;
+        if (gaze_snap(cam, &jpeg, &n) != 0) die("see");
+        const char *path = (argc >= 3) ? argv[2] : "see.jpg";
+        FILE *f = fopen(path, "wb");
+        if (!f || fwrite(jpeg, 1, n, f) != n) {
+            free(jpeg);
+            if (f) fclose(f);
+            die("write jpeg");
+        }
+        fclose(f);
+        free(jpeg);
+        char line[128];
+        if (gaze_line(cam, line, sizeof(line)) == 0) printf("%s  %s\n", line, path);
+        else printf("%s\n", path);
     } else {
         char line[128];
         if (gaze_cmd(cam, argc - 1, argv + 1, line, sizeof(line)) != 0) {

@@ -35,6 +35,11 @@ int gaze_get_mode(GazeCam *cam, uint8_t *b0, uint8_t *b1);
 int gaze_set_mode(GazeCam *cam, uint8_t b0, uint8_t b1);
 
 const char *gaze_error(void);
+void gaze_set_error(const char *msg);
+
+/* JPEG snapshot from the video stream. Turns the sensor on. Caller free()s *jpeg. */
+int gaze_snap(GazeCam *cam, uint8_t **jpeg, size_t *len);
+void gaze_see_close(void);
 
 /* Compact one-liner: "2e1a:4c04 z=100 p=0 t=0" */
 int gaze_line(GazeCam *cam, char *buf, size_t n);

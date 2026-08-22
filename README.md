@@ -18,6 +18,8 @@
   <img src="docs/cli.gif" width="640" alt="gaze status, center, and zoom on an Insta360 Link 2">
 </p>
 
+<p align="center"><code>g q=v</code> turns the sensor on and returns a JPEG. That is the eyes.</p>
+
 ## Cameras
 
 Gaze talks USB Video Class 1.1 Camera Terminal controls (`CT_ZOOM_ABSOLUTE`, `CT_PANTILT_ABSOLUTE`). If `gaze status` prints zoom / pan / tilt ranges, it will move that camera. Vendor AI tracking is a separate XU.
@@ -75,14 +77,16 @@ macOS. `just` + clang.
 
 ```bash
 just build
+just test
 ./gaze status
+./gaze see
 ./gaze center
 ./gaze zoom 200
 ```
 
 ## MCP
 
-The camera is the tool. One verb. One-line replies. After a move you already have state — do not call `s` again.
+The camera is the tool. `q=v` is the frame (JPEG). Moves stay one line so they do not burn tokens. After a move you already have state — do not call `s` again. Call `v` when you need to look.
 
 ```json
 {
@@ -97,7 +101,8 @@ The camera is the tool. One verb. One-line replies. After a move you already hav
 
 | q | |
 |--|--|
-| `s` | status |
+| `v` | JPEG from the sensor (turns the camera on) |
+| `s` | status (text only) |
 | `c` | center |
 | `z 200` / `z +20` | zoom |
 | `p N` / `t N` | pan / tilt |
@@ -109,6 +114,7 @@ Reply: `2e1a:4c04 z=200 p=0 t=0`
 | | |
 |--|--|
 | `gaze status` | name, zoom, pan, tilt, mode |
+| `gaze see [file]` | JPEG from the sensor (default `see.jpg`) |
 | `gaze center` | pan 0, tilt 0, default zoom |
 | `gaze zoom 200` | absolute, or `+20` / `-20` |
 | `gaze pan` / `gaze tilt` | same, native UVC units |

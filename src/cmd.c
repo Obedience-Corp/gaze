@@ -73,6 +73,8 @@ int gaze_cmd(GazeCam *cam, int argc, char **argv, char *out, size_t n) {
     int rc = 0;
     if (strcmp(v, "s") == 0 || strcmp(v, "status") == 0) {
         rc = 0;
+    } else if (strcmp(v, "v") == 0 || strcmp(v, "see") == 0) {
+        rc = 0;
     } else if (strcmp(v, "c") == 0 || strcmp(v, "center") == 0) {
         rc = cmd_center(cam);
     } else if (strcmp(v, "z") == 0 || strcmp(v, "zoom") == 0) {

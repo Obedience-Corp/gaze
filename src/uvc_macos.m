@@ -36,6 +36,8 @@ const char *gaze_error(void) { return g_err; }
 
 static void set_err(const char *msg) { snprintf(g_err, sizeof(g_err), "%s", msg); }
 
+void gaze_set_error(const char *msg) { set_err(msg); }
+
 static void set_errf(const char *fmt, IOReturn kr) {
     snprintf(g_err, sizeof(g_err), "%s (0x%x)", fmt, kr);
 }
@@ -189,6 +191,7 @@ GazeCam *gaze_open(uint16_t vid, uint16_t pid) {
 
 void gaze_close(GazeCam *cam) {
     if (!cam) return;
+    gaze_see_close();
     if (cam->dev) {
         (*cam->dev)->USBDeviceClose(cam->dev);
         (*cam->dev)->Release(cam->dev);
