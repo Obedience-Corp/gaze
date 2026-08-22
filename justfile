@@ -20,3 +20,7 @@ center: build
 # Stdio MCP (one tool, one-line replies)
 mcp: build
     ./gaze mcp
+
+# Rebuild CLI stills + GIF for the README
+docs:
+    python3 scripts/render-cli.py
