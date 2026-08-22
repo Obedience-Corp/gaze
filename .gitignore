@@ -1,4 +1,6 @@
-gaze
+/gaze
+bin/*
+!bin/.gitkeep
 *.o
 .DS_Store
 /tmp/

@@ -1,32 +1,35 @@
 set dotenv-load := false
 
+bin := "bin/gaze"
+
 default:
     @just --list --justfile {{source_file()}}
 
 # Build the gaze CLI (macOS)
 build:
+    mkdir -p bin
     clang -fobjc-arc -O2 -Wall -Wextra -Werror -Wno-unused-parameter \
         -framework Foundation -framework IOKit \
         -framework AVFoundation -framework CoreMedia -framework CoreVideo \
         -framework CoreImage -framework ImageIO -framework CoreGraphics \
         -framework CoreServices \
-        -o gaze src/uvc_macos.m src/see_macos.m src/cmd.c src/mcp.c src/main.m
+        -o {{bin}} src/uvc_macos.m src/see_macos.m src/cmd.c src/mcp.c src/main.m
 
 # Run status
 status: build
-    ./gaze status
+    ./{{bin}} status
 
 # Center gimbal and reset zoom
 center: build
-    ./gaze center
+    ./{{bin}} center
 
 # JPEG from the sensor (turns the camera on)
 see: build
-    ./gaze see see.jpg
+    ./{{bin}} see see.jpg
 
 # Stdio MCP (one tool; q=v returns a JPEG)
 mcp: build
-    ./gaze mcp
+    ./{{bin}} mcp
 
 # Protocol + hardware tests. Hardware cases skip if no camera.
 test: build

@@ -78,10 +78,10 @@ macOS. `just` + clang.
 ```bash
 just build
 just test
-./gaze status
-./gaze see
-./gaze center
-./gaze zoom 200
+./bin/gaze status
+./bin/gaze see
+./bin/gaze center
+./bin/gaze zoom 200
 ```
 
 ## MCP
@@ -92,7 +92,7 @@ The camera is the tool. `q=v` is the frame (JPEG). Moves stay one line so they d
 {
   "mcpServers": {
     "gaze": {
-      "command": "/absolute/path/to/gaze",
+      "command": "/absolute/path/to/bin/gaze",
       "args": ["mcp"]
     }
   }

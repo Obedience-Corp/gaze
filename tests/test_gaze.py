@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GAZE = ROOT / "gaze"
+GAZE = ROOT / "bin" / "gaze"
 OUT = Path("/tmp/gaze-test-see.jpg")
 
 
