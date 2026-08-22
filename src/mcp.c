@@ -1,15 +1,15 @@
 #include "gaze.h"
+#include "json.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* One-tool stdio MCP. Newline JSON-RPC. No SDK. */
-
 static GazeCam *g_cam;
+static uint16_t g_vid, g_pid;
 
 static GazeCam *cam(void) {
-    if (!g_cam) g_cam = gaze_open(0, 0);
+    if (!g_cam) g_cam = gaze_open(g_vid, g_pid);
     return g_cam;
 }
 
@@ -19,75 +19,6 @@ static GazeCam *cam_reopen(void) {
         g_cam = NULL;
     }
     return cam();
-}
-
-static const char *json_skip(const char *s) {
-    while (*s && isspace((unsigned char)*s)) s++;
-    return s;
-}
-
-static int json_raw_id(const char *js, char *out, size_t n) {
-    const char *k = strstr(js, "\"id\"");
-    if (!k) {
-        snprintf(out, n, "null");
-        return 0;
-    }
-    k = strchr(k + 4, ':');
-    if (!k) return -1;
-    k = json_skip(k + 1);
-    if (*k == '"') {
-        size_t i = 0;
-        out[i++] = '"';
-        k++;
-        while (*k && *k != '"' && i + 2 < n) {
-            if (*k == '\\' && k[1]) {
-                out[i++] = *k++;
-                out[i++] = *k++;
-            } else {
-                out[i++] = *k++;
-            }
-        }
-        out[i++] = '"';
-        out[i] = 0;
-        return 0;
-    }
-    size_t i = 0;
-    while (*k && *k != ',' && *k != '}' && *k != ']' && i + 1 < n) {
-        if (!isspace((unsigned char)*k)) out[i++] = *k;
-        k++;
-    }
-    out[i] = 0;
-    if (!out[0]) snprintf(out, n, "null");
-    return 0;
-}
-
-static int json_str(const char *js, const char *key, char *out, size_t n) {
-    char pat[64];
-    snprintf(pat, sizeof(pat), "\"%s\"", key);
-    const char *k = js;
-    for (;;) {
-        k = strstr(k, pat);
-        if (!k) return -1;
-        const char *colon = strchr(k + strlen(pat), ':');
-        if (!colon) return -1;
-        colon = json_skip(colon + 1);
-        if (*colon != '"') {
-            k += strlen(pat);
-            continue;
-        }
-        colon++;
-        size_t i = 0;
-        while (*colon && *colon != '"' && i + 1 < n) {
-            if (*colon == '\\' && colon[1]) {
-                colon++;
-                out[i++] = *colon++;
-            } else {
-                out[i++] = *colon++;
-            }
-        }
-        out[i] = 0;
-        return 0;
-    }
 }
 
 static void emit(const char *s) {
@@ -103,6 +34,14 @@ static void reply_ok(const char *id, const char *body) {
     snprintf(line, n, "{\"jsonrpc\":\"2.0\",\"id\":%s,\"result\":%s}", id, body);
     emit(line);
     free(line);
+}
+
+static void reply_err(const char *id, int code, const char *msg) {
+    char line[1024];
+    snprintf(line, sizeof(line),
+             "{\"jsonrpc\":\"2.0\",\"id\":%s,\"error\":{\"code\":%d,\"message\":\"%s\"}}",
+             id, code, msg);
+    emit(line);
 }
 
 static char *b64enc(const uint8_t *src, size_t n, size_t *outn) {
@@ -132,14 +71,6 @@ static char *b64enc(const uint8_t *src, size_t n, size_t *outn) {
     return d;
 }
 
-static void reply_err(const char *id, int code, const char *msg) {
-    char line[1024];
-    snprintf(line, sizeof(line),
-             "{\"jsonrpc\":\"2.0\",\"id\":%s,\"error\":{\"code\":%d,\"message\":\"%s\"}}",
-             id, code, msg);
-    emit(line);
-}
-
 static void json_escape(const char *in, char *out, size_t n) {
     size_t i = 0;
     for (; *in && i + 2 < n; in++) {
@@ -153,6 +84,24 @@ static void json_escape(const char *in, char *out, size_t n) {
         }
     }
     out[i] = 0;
+}
+
+static void id_emit(const JVal *idv, char *out, size_t n) {
+    if (!idv || idv->t == JNULL) {
+        snprintf(out, n, "null");
+        return;
+    }
+    if (idv->t == JNUM && idv->s) {
+        snprintf(out, n, "%s", idv->s);
+        return;
+    }
+    if (idv->t == JSTR && idv->s) {
+        char esc[128];
+        json_escape(idv->s, esc, sizeof(esc));
+        snprintf(out, n, "\"%s\"", esc);
+        return;
+    }
+    snprintf(out, n, "null");
 }
 
 static void tool_text(const char *id, const char *text, int is_err) {
@@ -201,7 +150,7 @@ static const char *TOOLS =
 static const char *INIT_CAP =
     "{\"resultType\":\"complete\",\"protocolVersion\":\"%s\","
     "\"capabilities\":{\"tools\":{\"listChanged\":false}},"
-    "\"serverInfo\":{\"name\":\"gaze\",\"version\":\"0.1.0\"},"
+    "\"serverInfo\":{\"name\":\"gaze\",\"version\":\"" GAZE_VERSION "\"},"
     "\"instructions\":\"g. q=v jpeg (eyes), s status, c center, z N zoom, p N pan, t N tilt. "
     "Never status after a move.\"}";
 
@@ -217,7 +166,7 @@ static void split_q(char *q, int *argc, char **argv, int max) {
     }
 }
 
-static void do_g(const char *id, char *q) {
+static void do_g(const char *id, const char *q0) {
     GazeCam *c = cam();
     if (!c) {
         c = cam_reopen();
@@ -226,12 +175,12 @@ static void do_g(const char *id, char *q) {
             return;
         }
     }
+    char qbuf[128];
+    snprintf(qbuf, sizeof(qbuf), "%s", q0 ? q0 : "s");
     int argc = 0;
     char *argv[8];
-    split_q(q, &argc, argv, 8);
-    if (argc == 0) {
-        argv[argc++] = "s";
-    }
+    split_q(qbuf, &argc, argv, 8);
+    if (argc == 0) argv[argc++] = "s";
     int want_see = (strcmp(argv[0], "v") == 0 || strcmp(argv[0], "see") == 0);
     char out[128];
     if (gaze_cmd(c, argc, argv, out, sizeof(out)) != 0) {
@@ -255,42 +204,49 @@ static void do_g(const char *id, char *q) {
     tool_text(id, out, 0);
 }
 
-int gaze_mcp(void) {
+int gaze_mcp(uint16_t vid, uint16_t pid) {
+    g_vid = vid;
+    g_pid = pid;
     char *line = NULL;
     size_t cap = 0;
     setvbuf(stdin, NULL, _IONBF, 0);
     setvbuf(stdout, NULL, _IOLBF, 0);
     while (getline(&line, &cap, stdin) >= 0) {
         if (!line[0] || line[0] == '\n') continue;
-        char id[64];
-        char method[64];
-        json_raw_id(line, id, sizeof(id));
-        if (json_str(line, "method", method, sizeof(method)) != 0) {
-            if (strstr(line, "\"id\"")) reply_err(id, -32600, "no method");
+        JVal *root = jparse(line);
+        if (!root) {
+            reply_err("null", -32700, "parse error");
             continue;
         }
+        char id[64];
+        id_emit(jobj(root, "id"), id, sizeof(id));
+        const char *method = jstr(jobj(root, "method"));
+        if (!method) {
+            if (jobj(root, "id")) reply_err(id, -32600, "no method");
+            jfree(root);
+            continue;
+        }
+        if (strncmp(method, "notifications/", 14) == 0) {
+            jfree(root);
+            continue;
+        }
+        JVal *params = jobj(root, "params");
         if (strcmp(method, "initialize") == 0 || strcmp(method, "server/discover") == 0) {
             char ver[32] = "2025-03-26";
-            char pver[32];
-            if (json_str(line, "protocolVersion", pver, sizeof(pver)) == 0 && pver[0]) {
-                snprintf(ver, sizeof(ver), "%s", pver);
-            }
+            const char *pv = jstr(jobj(params, "protocolVersion"));
+            if (!pv) pv = jstr(jobj(root, "protocolVersion"));
+            if (pv && pv[0]) snprintf(ver, sizeof(ver), "%s", pv);
             char body[768];
             snprintf(body, sizeof(body), INIT_CAP, ver);
             reply_ok(id, body);
-        } else if (strcmp(method, "notifications/initialized") == 0 ||
-                   strcmp(method, "notifications/cancelled") == 0) {
-            continue;
         } else if (strcmp(method, "ping") == 0) {
             reply_ok(id, "{}");
         } else if (strcmp(method, "tools/list") == 0) {
             reply_ok(id, TOOLS);
         } else if (strcmp(method, "tools/call") == 0) {
-            char name[32] = {0};
-            char q[128] = {0};
-            json_str(line, "name", name, sizeof(name));
-            json_str(line, "q", q, sizeof(q));
-            if (name[0] && strcmp(name, "g") != 0 && strcmp(name, "gaze") != 0) {
+            const char *name = jstr(jobj(params, "name"));
+            const char *q = jstr(jobj(jobj(params, "arguments"), "q"));
+            if (name && strcmp(name, "g") != 0 && strcmp(name, "gaze") != 0) {
                 tool_text(id, "unknown tool", 1);
             } else {
                 do_g(id, q);
@@ -302,6 +258,7 @@ int gaze_mcp(void) {
         } else {
             reply_err(id, -32601, "unknown");
         }
+        jfree(root);
     }
     free(line);
     if (g_cam) gaze_close(g_cam);

@@ -117,12 +117,16 @@ def move_target(cur, amin, amax):
 
 
 class Mcp:
-    def __init__(self, env=None):
+    def __init__(self, env=None, extra=None):
         e = os.environ.copy()
         if env:
             e.update(env)
+        cmd = [str(GAZE)]
+        if extra:
+            cmd.extend(extra)
+        cmd.append("mcp")
         self.p = subprocess.Popen(
-            [str(GAZE), "mcp"],
+            cmd,
             cwd=ROOT,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -238,6 +242,22 @@ class Matrix(unittest.TestCase):
                 announce(cam, "tilt skip")
             self._see(cam)
             self._mcp_see(cam)
+        self._see_frames_are_distinct()
+
+    def _see_frames_are_distinct(self):
+        blobs = []
+        for cam in self.cams:
+            path = Path("/tmp") / f"gaze-test-see-{cam['id'].replace(':', '-')}.jpg"
+            if path.exists():
+                blobs.append((cam, path.read_bytes()))
+        if len(blobs) < 2:
+            return
+        with self.subTest(column="see-identity"):
+            self.assertNotEqual(
+                blobs[0][1],
+                blobs[1][1],
+                f"see frames collided: {cam_label(blobs[0][0])} vs {cam_label(blobs[1][0])}",
+            )
 
     def _status(self, cam):
         with self.subTest(camera=cam_label(cam), column="status"):
@@ -311,7 +331,7 @@ class Matrix(unittest.TestCase):
     def _mcp_see(self, cam):
         with self.subTest(camera=cam_label(cam), column="mcp see"):
             announce(cam, "mcp see")
-            mcp = Mcp(env={"GAZE_DEV": cam["id"]})
+            mcp = Mcp(extra=["-d", cam["id"]])
             try:
                 mcp.call(
                     "initialize",

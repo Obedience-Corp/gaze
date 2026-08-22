@@ -13,7 +13,7 @@ build:
         -framework AVFoundation -framework CoreMedia -framework CoreVideo \
         -framework CoreImage -framework ImageIO -framework CoreGraphics \
         -framework CoreServices \
-        -o {{bin}} src/uvc_macos.m src/see_macos.m src/cmd.c src/mcp.c src/main.m
+        -o {{bin}} src/uvc_macos.m src/see_macos.m src/json.c src/cmd.c src/mcp.c src/main.m
 
 # Run status
 status: build
@@ -35,13 +35,22 @@ mcp: build
 list: build
     ./{{bin}} list
 
+# Camera-free protocol tests (CI).
+test-protocol: build
+    python3 tests/test_protocol.py
+
 # Protocol always. Hardware follows the plugged-in camera (skip if none).
-test: build
+test: test-protocol
     python3 tests/test_gaze.py
 
-# Same tests, but fail if no UVC camera is on the wire.
+# Same hardware matrix, but fail if no UVC camera is on the wire.
 test-hw: build
     python3 tests/test_gaze.py --require-hw
+
+# gitignored binary
+dist: build
+    strip {{bin}}
+    ./{{bin}} --version
 
 # Rebuild CLI stills + GIF for the README
 docs:
