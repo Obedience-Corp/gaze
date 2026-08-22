@@ -4,7 +4,9 @@
   <img src="docs/hero-insta360-link2.jpg" width="720" alt="Insta360 Link 2 PTZ webcam and Insta360 Link 2C">
 </p>
 
-<p align="center"><b>Native PTZ. No vendor app.</b></p>
+<p align="center"><b>Give your agents eyes.</b></p>
+
+<p align="center">Native PTZ. No vendor app.</p>
 
 <p align="center">
   USB Video Class on the wire. Pan, tilt, and zoom for
@@ -80,7 +82,7 @@ just build
 
 ## MCP
 
-One tool. One-line replies. The camera stays open. After a move you already have state — do not call `s` again.
+The camera is the tool. One verb. One-line replies. After a move you already have state — do not call `s` again.
 
 ```json
 {
