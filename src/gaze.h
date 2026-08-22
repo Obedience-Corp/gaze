@@ -15,10 +15,13 @@ typedef struct {
     uint8_t xu_unit;     /* 0 = no vendor XU */
     uint8_t xu_mode_sel; /* AI / mode selector */
     uint16_t xu_mode_len;
+    uint8_t has_zoom;
+    uint8_t has_pantilt;
 } GazeInfo;
 
-GazeCam *gaze_open(uint16_t vid, uint16_t pid); /* 0,0 = first UVC PTZ */
+GazeCam *gaze_open(uint16_t vid, uint16_t pid); /* 0,0 = env GAZE_DEV or best UVC */
 void gaze_close(GazeCam *cam);
+int gaze_list(void); /* print UVC cameras to stdout; returns count */
 
 int gaze_info(GazeCam *cam, GazeInfo *out);
 

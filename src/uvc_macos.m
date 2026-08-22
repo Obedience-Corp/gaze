@@ -7,6 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int parse_devid(const char *s, uint16_t *vid, uint16_t *pid) {
+    unsigned v = 0, p = 0;
+    if (!s || sscanf(s, "%x:%x", &v, &p) != 2) return -1;
+    *vid = (uint16_t)v;
+    *pid = (uint16_t)p;
+    return 0;
+}
+
 #define RC_SET_CUR 0x01
 #define RC_GET_CUR 0x81
 #define RC_GET_MIN 0x82
@@ -156,36 +164,94 @@ static GazeCam *try_service(io_service_t svc, uint16_t want_vid, uint16_t want_p
             cam->info.xu_mode_len = (uint16_t)(lenb[0] | (lenb[1] << 8));
         }
     }
+    {
+        uint16_t zmin = 0, zmax = 0, zdef = 0;
+        int32_t pmin = 0, pmax = 0, tmin = 0, tmax = 0;
+        cam->info.has_zoom =
+            (gaze_zoom_range(cam, &zmin, &zmax, &zdef) == 0 && zmax > zmin) ? 1 : 0;
+        cam->info.has_pantilt =
+            (gaze_pantilt_range(cam, &pmin, &pmax, &tmin, &tmax) == 0 &&
+             (pmax > pmin || tmax > tmin))
+                ? 1
+                : 0;
+    }
     return cam;
+}
+
+static int cam_rank(const GazeInfo *i) {
+    int r = 1;
+    if (i->has_zoom) r += 2;
+    if (i->has_pantilt) r += 4;
+    return r;
+}
+
+static io_iterator_t usb_iter(void) {
+    CFMutableDictionaryRef matching = IOServiceMatching("IOUSBHostDevice");
+    io_iterator_t iter = 0;
+    if (IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iter) || !iter) {
+        return 0;
+    }
+    return iter;
+}
+
+int gaze_list(void) {
+    io_iterator_t iter = usb_iter();
+    if (!iter) {
+        set_err("no USB iterator");
+        return -1;
+    }
+    int n = 0;
+    io_service_t svc;
+    while ((svc = IOIteratorNext(iter))) {
+        GazeCam *cam = try_service(svc, 0, 0);
+        IOObjectRelease(svc);
+        if (!cam) continue;
+        printf("%04x:%04x  zoom=%u pantilt=%u  %s\n", cam->info.vid, cam->info.pid,
+               cam->info.has_zoom, cam->info.has_pantilt, cam->info.name);
+        n++;
+        gaze_close(cam);
+    }
+    IOObjectRelease(iter);
+    return n;
 }
 
 GazeCam *gaze_open(uint16_t vid, uint16_t pid) {
     g_err[0] = 0;
-    CFMutableDictionaryRef matching = IOServiceMatching("IOUSBHostDevice");
-    io_iterator_t iter = 0;
-    if (IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iter) || !iter) {
+    if (!vid && !pid) {
+        const char *e = getenv("GAZE_DEV");
+        if (e && e[0] && parse_devid(e, &vid, &pid) != 0) {
+            set_err("GAZE_DEV must be vid:pid (hex)");
+            return NULL;
+        }
+    }
+    io_iterator_t iter = usb_iter();
+    if (!iter) {
         set_err("no USB iterator");
         return NULL;
     }
-    GazeCam *found = NULL;
-    GazeCam *fallback = NULL;
+    GazeCam *best = NULL;
+    int best_rank = -1;
     io_service_t svc;
     while ((svc = IOIteratorNext(iter))) {
         GazeCam *cam = try_service(svc, vid, pid);
         IOObjectRelease(svc);
         if (!cam) continue;
-        if (cam->info.vid == 0x2e1a) {
-            if (fallback) gaze_close(fallback);
-            found = cam;
+        if (vid || pid) {
+            best = cam;
             break;
         }
-        if (!fallback) fallback = cam;
-        else gaze_close(cam);
+        int r = cam_rank(&cam->info);
+        if (r > best_rank) {
+            if (best) gaze_close(best);
+            best = cam;
+            best_rank = r;
+        } else {
+            gaze_close(cam);
+        }
     }
     IOObjectRelease(iter);
-    if (found) return found;
-    if (fallback) return fallback;
-    set_err("no UVC PTZ camera");
+    if (best) return best;
+    set_err((vid || pid) ? "no matching UVC camera" : "no UVC camera");
     return NULL;
 }
 

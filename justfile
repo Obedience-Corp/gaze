@@ -31,9 +31,17 @@ see: build
 mcp: build
     ./{{bin}} mcp
 
-# Protocol + hardware tests. Hardware cases skip if no camera.
+# List UVC cameras and what they actually expose
+list: build
+    ./{{bin}} list
+
+# Protocol always. Hardware follows the plugged-in camera (skip if none).
 test: build
     python3 tests/test_gaze.py
+
+# Same tests, but fail if no UVC camera is on the wire.
+test-hw: build
+    python3 tests/test_gaze.py --require-hw
 
 # Rebuild CLI stills + GIF for the README
 docs:

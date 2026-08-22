@@ -9,9 +9,10 @@
 <p align="center">Native PTZ. No vendor app.</p>
 
 <p align="center">
-  USB Video Class on the wire. Pan, tilt, and zoom for
+  USB Video Class on the wire. JPEG from any UVC webcam.
+  Pan / tilt when the camera has a gimbal. Zoom when it has zoom.
   <b>Insta360</b>, <b>OBSBOT</b>, <b>Logitech</b>, <b>Elgato</b>,
-  <b>Yealink</b>, <b>AVer</b>, and any UVC camera that exposes the Camera Terminal.
+  <b>Yealink</b>, <b>AVer</b>, Apple Studio Display, and the rest of the UVC pile.
 </p>
 
 <p align="center">
@@ -22,7 +23,7 @@
 
 ## Cameras
 
-Gaze talks USB Video Class 1.1 Camera Terminal controls (`CT_ZOOM_ABSOLUTE`, `CT_PANTILT_ABSOLUTE`). If `gaze status` prints zoom / pan / tilt ranges, it will move that camera. Vendor AI tracking is a separate XU.
+Gaze talks USB Video Class 1.1. `gaze see` / `g q=v` is the picture. Zoom and pan/tilt are used when that Camera Terminal actually has `CT_ZOOM_ABSOLUTE` / `CT_PANTILT_ABSOLUTE`. Clip-on webcams still get eyes. Gimbals also get PTZ. `gaze list` prints what is on the wire. Vendor AI tracking is a separate XU.
 
 <table align="center">
   <tr>
@@ -57,7 +58,8 @@ Gaze talks USB Video Class 1.1 Camera Terminal controls (`CT_ZOOM_ABSOLUTE`, `CT
 
 | Brand | Models | Status |
 | --- | --- | --- |
-| **Insta360** | Link, Link 2, Link 2 Pro, Link 2C | **PTZ proven on Link 2** (`2e1a:4c04`) |
+| **Insta360** | Link, Link 2, Link 2 Pro, Link 2C | PTZ + see proven on Link 2 (`2e1a:4c04`) |
+| **Apple** | Studio Display | UVC zoom + pan/tilt (`05ac:1114`) |
 | **OBSBOT** | Tiny, Tiny SE, Tiny 2, Tiny 2 Lite, Tiny 3, Tiny 3 Lite | UVC PTZ. Next lab device. |
 | **Logitech** | Rally, Rally Bar, Meetup, PTZ Pro 2 | UVC PTZ if the Camera Terminal has pan/tilt |
 | **Logitech** | Brio, MX Brio, C920, C922, C930e, StreamCam | UVC zoom / exposure. No gimbal. |
@@ -77,11 +79,12 @@ macOS. `just` + clang.
 
 ```bash
 just build
-just test
+just test          # protocol always; hardware skips if nothing is plugged in
+just test-hw       # fails if no UVC camera
+./bin/gaze list
 ./bin/gaze status
 ./bin/gaze see
-./bin/gaze center
-./bin/gaze zoom 200
+./bin/gaze -d 2e1a:4c04 zoom 200
 ```
 
 ## MCP

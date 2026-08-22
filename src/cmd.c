@@ -18,21 +18,31 @@ int gaze_line(GazeCam *cam, char *buf, size_t n) {
     uint16_t z = 0;
     int32_t pan = 0, tilt = 0;
     if (gaze_info(cam, &inf) != 0) return -1;
-    if (gaze_get_zoom(cam, &z) != 0) return -1;
-    if (gaze_get_pantilt(cam, &pan, &tilt) != 0) return -1;
+    if (inf.has_zoom && gaze_get_zoom(cam, &z) != 0) return -1;
+    if (inf.has_pantilt && gaze_get_pantilt(cam, &pan, &tilt) != 0) return -1;
     snprintf(buf, n, "%04x:%04x z=%u p=%d t=%d", inf.vid, inf.pid, z, pan, tilt);
     return 0;
 }
 
 static int cmd_center(GazeCam *cam) {
-    uint16_t zmin = 0, zmax = 0, zdef = 100;
-    gaze_zoom_range(cam, &zmin, &zmax, &zdef);
-    if (gaze_set_pantilt(cam, 0, 0) != 0) return -1;
-    if (gaze_set_zoom(cam, zdef) != 0) return -1;
+    GazeInfo inf;
+    if (gaze_info(cam, &inf) != 0) return -1;
+    if (inf.has_pantilt && gaze_set_pantilt(cam, 0, 0) != 0) return -1;
+    if (inf.has_zoom) {
+        uint16_t zmin = 0, zmax = 0, zdef = 100;
+        if (gaze_zoom_range(cam, &zmin, &zmax, &zdef) != 0) return -1;
+        if (gaze_set_zoom(cam, zdef) != 0) return -1;
+    }
     return 0;
 }
 
 static int cmd_zoom(GazeCam *cam, const char *arg) {
+    GazeInfo inf;
+    if (gaze_info(cam, &inf) != 0) return -1;
+    if (!inf.has_zoom) {
+        gaze_set_error("no zoom on this camera");
+        return -1;
+    }
     uint16_t cur = 0, zmin = 0, zmax = 0, zdef = 0;
     long next = 0;
     if (gaze_get_zoom(cam, &cur) != 0) return -1;
@@ -44,6 +54,12 @@ static int cmd_zoom(GazeCam *cam, const char *arg) {
 }
 
 static int cmd_axis(GazeCam *cam, int pan_axis, const char *arg) {
+    GazeInfo inf;
+    if (gaze_info(cam, &inf) != 0) return -1;
+    if (!inf.has_pantilt) {
+        gaze_set_error("no pan/tilt on this camera");
+        return -1;
+    }
     int32_t pan = 0, tilt = 0, pmin = 0, pmax = 0, tmin = 0, tmax = 0;
     long next = 0;
     if (gaze_get_pantilt(cam, &pan, &tilt) != 0) return -1;
