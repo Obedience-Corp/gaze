@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "gaze": {
+      "type": "stdio",
+      "command": "gaze",
+      "args": ["mcp"]
+    }
+  }
+}

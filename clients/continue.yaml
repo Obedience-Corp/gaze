@@ -1,0 +1,8 @@
+name: Gaze
+version: 0.2.0
+schema: v1
+mcpServers:
+  - name: gaze
+    command: gaze
+    args:
+      - mcp

@@ -1,0 +1,30 @@
+{
+  "name": "gaze",
+  "version": "0.2.0",
+  "description": "Give your agents eyes. Local UVC PTZ and JPEG. No vendor app.",
+  "author": {
+    "name": "Veronica",
+    "email": "318153306+veronica-agent@users.noreply.github.com",
+    "url": "https://github.com/veronica-agent"
+  },
+  "homepage": "https://github.com/Obedience-Corp/gaze",
+  "repository": "https://github.com/Obedience-Corp/gaze",
+  "license": "Apache-2.0",
+  "keywords": ["webcam", "ptz", "uvc", "mcp", "vision", "camera"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Gaze",
+    "shortDescription": "Give your agents eyes",
+    "longDescription": "Local USB Video Class PTZ and JPEG. The picture and the gimbal are the same vid:pid. Requires the gaze binary on PATH (brew install gaze).",
+    "developerName": "Veronica",
+    "category": "Productivity",
+    "capabilities": ["Read"],
+    "websiteURL": "https://github.com/Obedience-Corp/gaze",
+    "defaultPrompt": [
+      "Look at my desk with Gaze.",
+      "Center the webcam and show me the frame."
+    ]
+  }
+}
