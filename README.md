@@ -83,6 +83,71 @@ From source: `just build`. Protocol tests (no camera): `just test-protocol`. Har
 
 Release binary (Apple Silicon): [v0.2.0](https://github.com/Obedience-Corp/gaze/releases/tag/v0.2.0) `gaze-darwin-arm64`.
 
+## Plugins
+
+The binary is the MCP server (`gaze mcp`). Plugins do not wrap it in npm.
+
+<table align="center">
+  <tr>
+    <td align="center"><b>Claude Code</b></td>
+    <td>
+
+```
+/plugin marketplace add Obedience-Corp/gaze
+/plugin install gaze@gaze
+```
+
+</td>
+  </tr>
+  <tr>
+    <td align="center"><b>Grok</b></td>
+    <td>
+
+```
+grok plugin marketplace add Obedience-Corp/gaze
+grok plugin install gaze --trust
+```
+
+</td>
+  </tr>
+  <tr>
+    <td align="center"><b>Codex</b></td>
+    <td>
+
+```
+codex plugin marketplace add Obedience-Corp/gaze
+```
+
+</td>
+  </tr>
+  <tr>
+    <td align="center"><b>Cursor</b></td>
+    <td>
+
+Agent Plugin (`plugin.json` + `mcp.json`). Local:
+
+```
+ln -s "$(pwd)" ~/.cursor/plugins/local/gaze
+```
+
+Or paste `clients/cursor.json` into `~/.cursor/mcp.json`.
+
+[Add to Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=gaze&config=eyJjb21tYW5kIjoiZ2F6ZSIsImFyZ3MiOlsibWNwIl19)
+
+</td>
+  </tr>
+</table>
+
+<p align="center">
+  <a href="vscode:mcp/install?%7B%22name%22%3A%22gaze%22%2C%22command%22%3A%22gaze%22%2C%22args%22%3A%5B%22mcp%22%5D%7D">Add to VS Code</a>
+  · Claude Desktop → <code>clients/claude-desktop.json</code>
+  · Gemini CLI → <code>clients/gemini.json</code>
+  · Windsurf → <code>clients/windsurf.json</code>
+  · Cline → <code>clients/cline.json</code>
+</p>
+
+Pin a camera with `GAZE_DEV=vid:pid` or `gaze -d vid:pid mcp`. Two cameras on the bus: do not use the default.
+
 ## MCP
 
 The camera is the tool. `q=v` is the frame (JPEG). Moves stay one line so they do not burn tokens. After a move you already have state — do not call `s` again. Call `v` when you need to look.

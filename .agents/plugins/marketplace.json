@@ -1,0 +1,20 @@
+{
+  "name": "gaze",
+  "interface": {
+    "displayName": "Gaze"
+  },
+  "plugins": [
+    {
+      "name": "gaze",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

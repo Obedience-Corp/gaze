@@ -1,0 +1,16 @@
+{
+  "description": "Warn if the gaze binary is missing from PATH.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/check-gaze.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

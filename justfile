@@ -38,6 +38,7 @@ list: build
 # Camera-free protocol tests (CI).
 test-protocol: build
     python3 tests/test_protocol.py
+    python3 tests/test_plugins.py
 
 # Protocol always. Hardware follows the plugged-in camera (skip if none).
 test: test-protocol
