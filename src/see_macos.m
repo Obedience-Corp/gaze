@@ -21,6 +21,7 @@
            fromConnection:(AVCaptureConnection *)conn {
     (void)output;
     (void)conn;
+    if (self.jpeg.length > 800) return;
     CVPixelBufferRef pb = CMSampleBufferGetImageBuffer(sbuf);
     if (!pb) return;
     CIImage *img = [CIImage imageWithCVPixelBuffer:pb];
@@ -31,11 +32,7 @@
         img = [img imageByApplyingTransform:CGAffineTransformMakeScale(sc, sc)];
         e = img.extent;
     }
-    static CIContext *ctx;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        ctx = [CIContext context];
-    });
+    CIContext *ctx = [CIContext context];
     CGImageRef cg = [ctx createCGImage:img fromRect:e];
     if (!cg) return;
     NSMutableData *data = [NSMutableData data];
@@ -56,40 +53,45 @@
 }
 @end
 
-static AVCaptureSession *g_sess;
-static GazeSink *g_sink;
+static int parse_model_vidpid(NSString *model, uint16_t *vid, uint16_t *pid) {
+    if (!model) return -1;
+    unsigned v = 0, p = 0;
+    if (sscanf(model.UTF8String, "UVC Camera VendorID_%u ProductID_%u", &v, &p) != 2) return -1;
+    *vid = (uint16_t)v;
+    *pid = (uint16_t)p;
+    return 0;
+}
 
-static NSArray<AVCaptureDevice *> *video_devices(void) {
+static AVCaptureDevice *device_for_vidpid(uint16_t vid, uint16_t pid) {
     NSArray *types = @[ AVCaptureDeviceTypeExternal, AVCaptureDeviceTypeBuiltInWideAngleCamera ];
     AVCaptureDeviceDiscoverySession *ds =
         [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:types
                                                                mediaType:AVMediaTypeVideo
                                                                 position:AVCaptureDevicePositionUnspecified];
-    return ds.devices;
-}
-
-static AVCaptureDevice *pick_device(const char *want) {
-    NSArray<AVCaptureDevice *> *devs = video_devices();
-    NSString *w = (want && want[0]) ? [NSString stringWithUTF8String:want] : nil;
-    AVCaptureDevice *named = nil, *external = nil;
-    for (AVCaptureDevice *d in devs) {
-        if (w && [d.localizedName rangeOfString:w options:NSCaseInsensitiveSearch].location != NSNotFound) {
-            named = d;
-            break;
-        }
-        if (!external && d.position == AVCaptureDevicePositionUnspecified) external = d;
+    for (AVCaptureDevice *d in ds.devices) {
+        uint16_t v = 0, p = 0;
+        if (parse_model_vidpid(d.modelID, &v, &p) != 0) continue;
+        if (v == vid && p == pid) return d;
     }
-    if (named) return named;
-    if (external) return external;
-    return devs.firstObject;
+    return nil;
 }
 
-static int see_start(const char *want_name) {
-    if (g_sess && g_sess.running) return 0;
-    gaze_see_close();
-    AVCaptureDevice *dev = pick_device(want_name);
+int gaze_snap(GazeCam *cam, uint8_t **jpeg, size_t *len) {
+    if (!jpeg || !len) {
+        gaze_set_error("bad args");
+        return -1;
+    }
+    *jpeg = NULL;
+    *len = 0;
+    GazeInfo inf;
+    memset(&inf, 0, sizeof(inf));
+    if (!cam || gaze_info(cam, &inf) != 0) {
+        gaze_set_error("no camera");
+        return -1;
+    }
+    AVCaptureDevice *dev = device_for_vidpid(inf.vid, inf.pid);
     if (!dev) {
-        gaze_set_error("no video device");
+        gaze_set_error("no AVFoundation device for this vid:pid");
         return -1;
     }
     NSError *err = nil;
@@ -108,9 +110,8 @@ static int see_start(const char *want_name) {
     }
     [sess addInput:input];
     AVCaptureVideoDataOutput *out = [[AVCaptureVideoDataOutput alloc] init];
-    out.videoSettings = @{
-        (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA)
-    };
+    out.videoSettings =
+        @{(id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA)};
     out.alwaysDiscardsLateVideoFrames = YES;
     GazeSink *sink = [[GazeSink alloc] init];
     dispatch_queue_t q = dispatch_queue_create("gaze.see", DISPATCH_QUEUE_SERIAL);
@@ -121,38 +122,15 @@ static int see_start(const char *want_name) {
     }
     [sess addOutput:out];
     [sess startRunning];
-    g_sess = sess;
-    g_sink = sink;
-    return 0;
-}
-
-void gaze_see_close(void) {
-    if (g_sess) {
-        [g_sess stopRunning];
-        g_sess = nil;
-    }
-    g_sink = nil;
-}
-
-int gaze_snap(GazeCam *cam, uint8_t **jpeg, size_t *len) {
-    if (!jpeg || !len) {
-        gaze_set_error("bad args");
-        return -1;
-    }
-    *jpeg = NULL;
-    *len = 0;
-    GazeInfo inf;
-    memset(&inf, 0, sizeof(inf));
-    if (cam) gaze_info(cam, &inf);
-    if (see_start(inf.name) != 0) return -1;
     NSDate *until = [NSDate dateWithTimeIntervalSinceNow:3.0];
     NSData *data = nil;
     while ([until timeIntervalSinceNow] > 0) {
-        data = g_sink.jpeg;
+        data = sink.jpeg;
         if (data.length > 800) break;
         [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
                                  beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
     }
+    [sess stopRunning];
     if (!data.length) {
         gaze_set_error("camera produced no frame (grant camera permission, quit the vendor app)");
         return -1;

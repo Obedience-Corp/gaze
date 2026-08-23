@@ -6,8 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-static int parse_devid(const char *s, uint16_t *vid, uint16_t *pid) {
+int gaze_parse_devid(const char *s, uint16_t *vid, uint16_t *pid) {
     unsigned v = 0, p = 0;
     if (!s || sscanf(s, "%x:%x", &v, &p) != 2) return -1;
     *vid = (uint16_t)v;
@@ -219,7 +220,7 @@ GazeCam *gaze_open(uint16_t vid, uint16_t pid) {
     g_err[0] = 0;
     if (!vid && !pid) {
         const char *e = getenv("GAZE_DEV");
-        if (e && e[0] && parse_devid(e, &vid, &pid) != 0) {
+        if (e && e[0] && gaze_parse_devid(e, &vid, &pid) != 0) {
             set_err("GAZE_DEV must be vid:pid (hex)");
             return NULL;
         }
@@ -257,7 +258,6 @@ GazeCam *gaze_open(uint16_t vid, uint16_t pid) {
 
 void gaze_close(GazeCam *cam) {
     if (!cam) return;
-    gaze_see_close();
     if (cam->dev) {
         (*cam->dev)->USBDeviceClose(cam->dev);
         (*cam->dev)->Release(cam->dev);
@@ -301,7 +301,14 @@ int gaze_get_zoom(GazeCam *cam, uint16_t *zoom) {
 
 int gaze_set_zoom(GazeCam *cam, uint16_t zoom) {
     uint8_t b[2] = {(uint8_t)(zoom & 0xff), (uint8_t)((zoom >> 8) & 0xff)};
-    return uvc_set(cam, CT_ZOOM_ABSOLUTE, cam->info.camera_unit, b, 2);
+    if (uvc_set(cam, CT_ZOOM_ABSOLUTE, cam->info.camera_unit, b, 2) != 0) return -1;
+    uint16_t got = 0;
+    if (gaze_get_zoom(cam, &got) != 0) return -1;
+    if (got != zoom) {
+        set_err("zoom did not take");
+        return -1;
+    }
+    return 0;
 }
 
 int gaze_zoom_range(GazeCam *cam, uint16_t *min, uint16_t *max, uint16_t *defv) {
@@ -356,7 +363,18 @@ int gaze_set_pantilt(GazeCam *cam, int32_t pan, int32_t tilt) {
     uint8_t b[8];
     put_le_i32(b, pan);
     put_le_i32(b + 4, tilt);
-    return uvc_set(cam, CT_PANTILT_ABSOLUTE, cam->info.camera_unit, b, 8);
+    if (uvc_set(cam, CT_PANTILT_ABSOLUTE, cam->info.camera_unit, b, 8) != 0) return -1;
+    int32_t gp = 0, gt = 0;
+    if (gaze_get_pantilt(cam, &gp, &gt) != 0) return -1;
+    if (gp != pan || gt != tilt) {
+        usleep(200000);
+        if (gaze_get_pantilt(cam, &gp, &gt) != 0) return -1;
+    }
+    if (gp != pan || gt != tilt) {
+        set_err("pan/tilt did not take");
+        return -1;
+    }
+    return 0;
 }
 
 int gaze_pantilt_range(GazeCam *cam, int32_t *pmin, int32_t *pmax, int32_t *tmin, int32_t *tmax) {

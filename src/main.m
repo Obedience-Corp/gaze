@@ -10,7 +10,7 @@ static void die(const char *ctx) {
 
 static void usage(void) {
     fprintf(stderr,
-            "gaze — USB cameras for agents. gimbal optional.\n"
+            "gaze %s — USB cameras for agents. gimbal optional.\n"
             "\n"
             "  gaze list\n"
             "  gaze [-d vid:pid] status\n"
@@ -19,18 +19,12 @@ static void usage(void) {
             "  gaze [-d vid:pid] zoom <n|+n|-n>\n"
             "  gaze [-d vid:pid] pan <n|+n|-n>\n"
             "  gaze [-d vid:pid] tilt <n|+n|-n>\n"
-            "  gaze mcp          stdio MCP (one tool: g; q=v returns a JPEG)\n"
+            "  gaze [-d vid:pid] mcp   stdio MCP (one tool: g; q=v returns a JPEG)\n"
+            "  gaze --version\n"
             "\n"
-            "Any UVC webcam: see. Zoom / pan / tilt if the Camera Terminal has them.\n"
-            "GAZE_DEV=vid:pid selects a camera. Quit the vendor controller first.\n");
-}
-
-static int parse_devid(const char *s, uint16_t *vid, uint16_t *pid) {
-    unsigned v = 0, p = 0;
-    if (!s || sscanf(s, "%x:%x", &v, &p) != 2) return -1;
-    *vid = (uint16_t)v;
-    *pid = (uint16_t)p;
-    return 0;
+            "JPEG is bound to vid:pid (UVC Camera VendorID/ProductID), not the device name.\n"
+            "GAZE_DEV=vid:pid is the same pin. Quit the vendor controller first.\n",
+            GAZE_VERSION);
 }
 
 static GazeCam *must_open(uint16_t vid, uint16_t pid) {
@@ -87,19 +81,23 @@ int main(int argc, char **argv) {
         usage();
         return 0;
     }
-    if (argc >= 2 && strcmp(argv[1], "mcp") == 0) return gaze_mcp();
-    if (argc >= 2 && strcmp(argv[1], "list") == 0) {
-        int n = gaze_list();
-        if (n < 0) die("list");
-        if (n == 0) fprintf(stderr, "gaze: no UVC camera\n");
-        return n > 0 ? 0 : 1;
+    if (argc >= 2 && strcmp(argv[1], "--version") == 0) {
+        printf("gaze %s\n", GAZE_VERSION);
+        return 0;
     }
     if (argc >= 3 && strcmp(argv[1], "-d") == 0) {
-        if (parse_devid(argv[2], &vid, &pid) != 0) {
+        if (gaze_parse_devid(argv[2], &vid, &pid) != 0) {
             fprintf(stderr, "gaze: -d wants vid:pid in hex\n");
             return 1;
         }
         argi = 3;
+    }
+    if (argc > argi && strcmp(argv[argi], "mcp") == 0) return gaze_mcp(vid, pid);
+    if (argc > argi && strcmp(argv[argi], "list") == 0) {
+        int n = gaze_list();
+        if (n < 0) die("list");
+        if (n == 0) fprintf(stderr, "gaze: no UVC camera\n");
+        return n > 0 ? 0 : 1;
     }
     const char *cmd = (argc > argi) ? argv[argi] : "status";
     GazeCam *cam = must_open(vid, pid);
@@ -126,7 +124,7 @@ int main(int argc, char **argv) {
         char line[128];
         if (gaze_cmd(cam, argc - argi, argv + argi, line, sizeof(line)) != 0) {
             if (argc < argi + 2 && (strcmp(cmd, "zoom") == 0 || strcmp(cmd, "pan") == 0 ||
-                             strcmp(cmd, "tilt") == 0)) {
+                                    strcmp(cmd, "tilt") == 0)) {
                 usage();
                 rc = 1;
             } else {

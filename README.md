@@ -9,10 +9,8 @@
 <p align="center">Native PTZ. No vendor app.</p>
 
 <p align="center">
-  USB Video Class on the wire. JPEG from any UVC webcam.
-  Pan / tilt when the camera has a gimbal. Zoom when it has zoom.
-  <b>Insta360</b>, <b>OBSBOT</b>, <b>Logitech</b>, <b>Elgato</b>,
-  <b>Yealink</b>, <b>AVer</b>, Apple Studio Display, and the rest of the UVC pile.
+  USB Video Class on the wire. JPEG from the same <code>vid:pid</code> that pans.
+  Gimbal optional. Zoom optional.
 </p>
 
 <p align="center">
@@ -23,7 +21,7 @@
 
 ## Cameras
 
-Gaze talks USB Video Class 1.1. `gaze see` / `g q=v` is the picture. Zoom and pan/tilt are used when that Camera Terminal actually has `CT_ZOOM_ABSOLUTE` / `CT_PANTILT_ABSOLUTE`. Clip-on webcams still get eyes. Gimbals also get PTZ. `gaze list` prints what is on the wire. Vendor AI tracking is a separate XU.
+Gaze talks USB Video Class 1.1. The picture and the gimbal are the same USB device (`UVC Camera VendorID_… ProductID_…` on AVFoundation, not the localized name). `gaze list` is the source of truth. Zoom / pan / tilt only if that Camera Terminal has the control. Vendor AI tracking is a separate XU.
 
 <table align="center">
   <tr>
@@ -58,18 +56,16 @@ Gaze talks USB Video Class 1.1. `gaze see` / `g q=v` is the picture. Zoom and pa
 
 | Brand | Models | Status |
 | --- | --- | --- |
-| **Insta360** | Link, Link 2, Link 2 Pro, Link 2C | PTZ + see proven on Link 2 (`2e1a:4c04`) |
-| **Apple** | Studio Display | UVC zoom + pan/tilt (`05ac:1114`) |
-| **OBSBOT** | Tiny, Tiny SE, Tiny 2, Tiny 2 Lite, Tiny 3, Tiny 3 Lite | UVC PTZ. Next lab device. |
+| **Insta360** | Link 2 | **Proven** see + zoom + pan/tilt (`2e1a:4c04`) |
+| **Apple** | Studio Display | **Proven** see + zoom + pan/tilt (`05ac:1114`) |
+| **Insta360** | Link, Link 2 Pro, Link 2C | UVC, untested here |
+| **OBSBOT** | Tiny, Tiny SE, Tiny 2, Tiny 3 | UVC PTZ, untested here |
 | **Logitech** | Rally, Rally Bar, Meetup, PTZ Pro 2 | UVC PTZ if the Camera Terminal has pan/tilt |
-| **Logitech** | Brio, MX Brio, C920, C922, C930e, StreamCam | UVC zoom / exposure. No gimbal. |
-| **Elgato** | Facecam, Facecam Pro, Facecam 4K, Facecam Neo, Facecam MK.2 | UVC. No gimbal. |
-| **Yealink** | UVC30, UVC34, UVC84, UVC86 | Conference PTZ over UVC |
-| **AVer** | CAM340+, CAM520 Pro, CAM550, CAM570 | Conference PTZ over UVC |
-| **Poly** | Studio P15, Studio USB, EagleEye Cube | UVC where the terminal exists |
-| **Anker** | Work, PowerConf C200 | UVC. C200 is not a gimbal. |
-| **Razer** | Kiyo, Kiyo Pro, Kiyo Pro Ultra | UVC. No gimbal. |
-| **PTZOptics**, **HuddleCamHD**, **Tenveo**, **NexiGo** | USB UVC SKUs | If they expose CT zoom / pan-tilt |
+| **Logitech** | Brio, MX Brio, C920, StreamCam | UVC zoom if present. No gimbal. |
+| **Elgato** | Facecam, Facecam Pro, Facecam 4K | UVC. No gimbal. |
+| **Yealink** | UVC30, UVC84, UVC86 | UVC PTZ, untested here |
+| **AVer** | CAM520, CAM550, CAM570 | UVC PTZ, untested here |
+| **PTZOptics**, **HuddleCamHD**, **Tenveo**, **NexiGo** | USB UVC SKUs | if the terminal has the control |
 
 Quit the vendor controller first. Insta360 Webcam, OBSBOT Center, Logitech Tune, Elgato Camera Hub, Yealink USB Connect, AVer PTZApp.
 
@@ -79,12 +75,12 @@ macOS. `just` + clang.
 
 ```bash
 just build
-just test          # protocol always; hardware skips if nothing is plugged in
+just test-protocol # no camera required (CI)
+just test          # protocol + hardware matrix
 just test-hw       # fails if no UVC camera
 ./bin/gaze list
-./bin/gaze status
-./bin/gaze see
-./bin/gaze -d 2e1a:4c04 zoom 200
+./bin/gaze -d 2e1a:4c04 see
+./bin/gaze --version
 ```
 
 ## MCP
@@ -96,7 +92,7 @@ The camera is the tool. `q=v` is the frame (JPEG). Moves stay one line so they d
   "mcpServers": {
     "gaze": {
       "command": "/absolute/path/to/bin/gaze",
-      "args": ["mcp"]
+      "args": ["-d", "2e1a:4c04", "mcp"]
     }
   }
 }
