@@ -1,0 +1,8 @@
+description = "Snap a JPEG from the local UVC camera"
+prompt = """
+Call the Gaze MCP tool `g` with q=v (JPEG). `see` is the same verb.
+
+Look at the returned image. Describe what is in frame. If the tool errors, quote the error verbatim.
+
+If more than one camera is on the bus, do not guess. Pin with GAZE_DEV=vid:pid. `gaze list` is the source of truth.
+"""

@@ -121,6 +121,18 @@ codex plugin marketplace add Obedience-Corp/gaze
 </td>
   </tr>
   <tr>
+    <td align="center"><b>Gemini CLI</b></td>
+    <td>
+
+```
+gemini extensions install https://github.com/Obedience-Corp/gaze
+```
+
+Optional pin: `gemini extensions config gaze GAZE_DEV`
+
+</td>
+  </tr>
+  <tr>
     <td align="center"><b>Cursor</b></td>
     <td>
 
@@ -141,7 +153,6 @@ Or paste `clients/cursor.json` into `~/.cursor/mcp.json`.
 <p align="center">
   <a href="vscode:mcp/install?%7B%22name%22%3A%22gaze%22%2C%22command%22%3A%22gaze%22%2C%22args%22%3A%5B%22mcp%22%5D%7D">Add to VS Code</a>
   · Claude Desktop → <code>clients/claude-desktop.json</code>
-  · Gemini CLI → <code>clients/gemini.json</code>
   · Windsurf → <code>clients/windsurf.json</code>
   · Cline → <code>clients/cline.json</code>
 </p>
