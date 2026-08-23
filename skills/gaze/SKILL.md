@@ -27,6 +27,7 @@ gaze list
 | Claude Code | `/plugin marketplace add Obedience-Corp/gaze` then `/plugin install gaze@gaze` |
 | Grok | `grok plugin marketplace add Obedience-Corp/gaze` then `grok plugin install gaze --trust` |
 | Codex | `codex plugin marketplace add Obedience-Corp/gaze` |
+| Gemini CLI | `gemini extensions install https://github.com/Obedience-Corp/gaze` |
 | Cursor | Agent Plugin at repo root (`plugin.json` + `mcp.json`). Local: `ln -s "$(pwd)" ~/.cursor/plugins/local/gaze` |
 
 Drop-in MCP snippets live in `clients/`.

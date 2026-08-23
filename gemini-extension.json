@@ -1,0 +1,19 @@
+{
+  "name": "gaze",
+  "version": "0.2.0",
+  "description": "Give your agents eyes. Local UVC PTZ and JPEG. No vendor app.",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "gaze": {
+      "command": "gaze",
+      "args": ["mcp"]
+    }
+  },
+  "settings": [
+    {
+      "name": "Camera (vid:pid)",
+      "description": "Optional. Pin a UVC device, e.g. 2e1a:4c04. Leave empty to auto-rank. Run `gaze list` if unsure.",
+      "envVar": "GAZE_DEV"
+    }
+  ]
+}

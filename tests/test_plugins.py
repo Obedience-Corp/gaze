@@ -48,6 +48,24 @@ class Plugins(unittest.TestCase):
         m = load_json(".cursor-plugin/plugin.json")
         self.assertEqual(m["name"], "gaze")
 
+    def test_gemini_extension(self):
+        m = load_json("gemini-extension.json")
+        self.assertEqual(m["name"], "gaze")
+        self.assertEqual(m["version"], "0.2.0")
+        self.assertEqual(m["contextFileName"], "GEMINI.md")
+        srv = m["mcpServers"]["gaze"]
+        self.assertEqual(srv["command"], "gaze")
+        self.assertEqual(srv["args"], ["mcp"])
+        env_vars = {s["envVar"] for s in m["settings"]}
+        self.assertIn("GAZE_DEV", env_vars)
+        self.assertTrue((ROOT / "GEMINI.md").is_file())
+        see = (ROOT / "commands/see.toml").read_text(encoding="utf-8")
+        gaze = (ROOT / "commands/gaze.toml").read_text(encoding="utf-8")
+        self.assertIn("q=v", see)
+        self.assertIn("{{args}}", gaze)
+        raw = (ROOT / "gemini-extension.json").read_text(encoding="utf-8")
+        self.assertNotIn("npx", raw)
+
     def test_mcp_stdio_is_gaze_binary(self):
         agent = load_json("mcp.json")
         srv = agent["mcpServers"]["gaze"]
@@ -114,7 +132,7 @@ class Plugins(unittest.TestCase):
 
     def test_no_npm_wrapper(self):
         """The MCP server is the C binary. Do not ship an npx shim."""
-        for rel in ("mcp.json", ".mcp.json", "clients/cursor.json"):
+        for rel in ("mcp.json", ".mcp.json", "clients/cursor.json", "gemini-extension.json"):
             raw = (ROOT / rel).read_text(encoding="utf-8")
             self.assertNotIn("npx", raw)
             self.assertNotIn("npm", raw)
