@@ -71,17 +71,17 @@ Quit the vendor controller first. Insta360 Webcam, OBSBOT Center, Logitech Tune,
 
 ## Install
 
-macOS. `just` + clang.
+macOS.
 
 ```bash
-just build
-just test-protocol # no camera required (CI)
-just test          # protocol + hardware matrix
-just test-hw       # fails if no UVC camera
-./bin/gaze list
-./bin/gaze -d 2e1a:4c04 see
-./bin/gaze --version
+brew tap Obedience-Corp/tap
+brew install gaze
+gaze list
 ```
+
+From source: `just build`. Protocol tests (no camera): `just test-protocol`. Hardware matrix: `just test-hw`.
+
+Release binary (Apple Silicon): [v0.2.0](https://github.com/Obedience-Corp/gaze/releases/tag/v0.2.0) `gaze-darwin-arm64`.
 
 ## MCP
 
@@ -91,7 +91,7 @@ The camera is the tool. `q=v` is the frame (JPEG). Moves stay one line so they d
 {
   "mcpServers": {
     "gaze": {
-      "command": "/absolute/path/to/bin/gaze",
+      "command": "gaze",
       "args": ["-d", "2e1a:4c04", "mcp"]
     }
   }
