@@ -79,11 +79,11 @@ brew install gaze
 gaze list
 ```
 
-Linux (Homebrew on Linux). `v0.2.0` is macOS-only; Linux is on HEAD until the next tag:
+Linux (Homebrew on Linux):
 
 ```bash
 brew tap Obedience-Corp/tap
-brew install --HEAD gaze
+brew install gaze
 gaze list
 ```
 
@@ -99,7 +99,7 @@ The operator must be in the `video` group (`/dev/video*`). Same CLI as macOS: `g
 
 From source on either OS: `just build`. Protocol tests (no camera): `just test-protocol`. Hardware matrix: `just test-hw`.
 
-Release binary (Apple Silicon): [v0.2.0](https://github.com/Obedience-Corp/gaze/releases/tag/v0.2.0) `gaze-darwin-arm64`.
+Release binaries: [v0.3.0](https://github.com/Obedience-Corp/gaze/releases/tag/v0.3.0) — `gaze-linux-x86_64` on Linux; Apple Silicon still `just build` / `brew install gaze` from source.
 
 ## Plugins
 

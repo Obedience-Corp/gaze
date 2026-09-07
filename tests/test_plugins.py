@@ -18,7 +18,7 @@ class Plugins(unittest.TestCase):
     def test_agent_plugin_manifest(self):
         m = load_json("plugin.json")
         self.assertEqual(m["name"], "gaze")
-        self.assertEqual(m["version"], "0.2.0")
+        self.assertEqual(m["version"], "0.3.0")
         self.assertIn("agent-plugins.org", m["$schema"])
         self.assertEqual(m["license"], "Apache-2.0")
 
@@ -51,7 +51,7 @@ class Plugins(unittest.TestCase):
     def test_gemini_extension(self):
         m = load_json("gemini-extension.json")
         self.assertEqual(m["name"], "gaze")
-        self.assertEqual(m["version"], "0.2.0")
+        self.assertEqual(m["version"], "0.3.0")
         self.assertEqual(m["contextFileName"], "GEMINI.md")
         srv = m["mcpServers"]["gaze"]
         self.assertEqual(srv["command"], "gaze")

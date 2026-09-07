@@ -64,7 +64,7 @@ class Protocol(unittest.TestCase):
     def test_version(self):
         p = subprocess.run([str(GAZE), "--version"], capture_output=True, text=True)
         self.assertEqual(p.returncode, 0)
-        self.assertIn("0.2.0", p.stdout)
+        self.assertIn("0.3.0", p.stdout)
 
     def test_handshake_and_nested_call(self):
         mcp = Mcp()
@@ -78,7 +78,7 @@ class Protocol(unittest.TestCase):
                 },
             )
             self.assertEqual(m["result"]["serverInfo"]["name"], "gaze")
-            self.assertEqual(m["result"]["serverInfo"]["version"], "0.2.0")
+            self.assertEqual(m["result"]["serverInfo"]["version"], "0.3.0")
             mcp.send({"jsonrpc": "2.0", "method": "notifications/initialized"}, expect=False)
             self.assertIn("result", mcp.call("ping"))
             tools = mcp.call("tools/list")["result"]["tools"]

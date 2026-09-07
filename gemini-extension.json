@@ -1,6 +1,6 @@
 {
   "name": "gaze",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Give your agents eyes. Local UVC PTZ and JPEG. No vendor app.",
   "contextFileName": "GEMINI.md",
   "mcpServers": {

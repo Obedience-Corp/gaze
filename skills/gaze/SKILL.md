@@ -16,8 +16,7 @@ The binary is the MCP server. Install it first; plugins only wire `gaze mcp` int
 
 ```bash
 brew tap Obedience-Corp/tap
-brew install gaze                 # macOS
-brew install --HEAD gaze          # Linux until the next tag
+brew install gaze
 gaze list
 ```
 
