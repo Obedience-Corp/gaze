@@ -1,19 +1,28 @@
 set dotenv-load := false
 
 bin := "bin/gaze"
+os := `uname -s`
 
 default:
     @just --list --justfile {{source_file()}}
 
-# Build the gaze CLI (macOS)
+# Build the gaze CLI (macOS IOKit/AVFoundation, Linux V4L2)
 build:
     mkdir -p bin
+    just _build-{{os}}
+
+_build-Darwin:
     clang -fobjc-arc -O2 -Wall -Wextra -Werror -Wno-unused-parameter \
         -framework Foundation -framework IOKit \
         -framework AVFoundation -framework CoreMedia -framework CoreVideo \
         -framework CoreImage -framework ImageIO -framework CoreGraphics \
         -framework CoreServices \
-        -o {{bin}} src/uvc_macos.m src/see_macos.m src/json.c src/cmd.c src/mcp.c src/main.m
+        -o {{bin}} src/uvc_parse.c src/uvc_macos.m src/see_macos.m src/json.c src/cmd.c src/mcp.c src/main.m
+
+_build-Linux:
+    cc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-format-truncation \
+        -o {{bin}} src/uvc_parse.c src/uvc_linux.c src/see_linux.c src/json.c src/cmd.c src/mcp.c \
+        -x c src/main.m -ljpeg
 
 # Run status
 status: build
