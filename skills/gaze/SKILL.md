@@ -16,11 +16,12 @@ The binary is the MCP server. Install it first; plugins only wire `gaze mcp` int
 
 ```bash
 brew tap Obedience-Corp/tap
-brew install gaze
+brew install gaze                 # macOS
+brew install --HEAD gaze          # Linux until the next tag
 gaze list
 ```
 
-Linux: `just build` in this repo (V4L2). User must be in group `video`.
+Linux also: `just build && just install` (V4L2). User must be in group `video`.
 
 ## Plugin
 

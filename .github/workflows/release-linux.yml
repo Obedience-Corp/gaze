@@ -1,0 +1,32 @@
+name: release-linux
+
+# Attach a Linux amd64 binary to the GitHub release so the Homebrew
+# formula can switch off --HEAD after the next tag (v0.3+).
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libjpeg-dev pkg-config
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+      - name: dist
+        run: just dist
+      - name: artifact
+        run: |
+          cp bin/gaze gaze-linux-x86_64
+          chmod +x gaze-linux-x86_64
+          ./gaze-linux-x86_64 --version
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: gaze-linux-x86_64
