@@ -57,6 +57,14 @@ test: test-protocol
 test-hw: build
     python3 tests/test_gaze.py --require-hw
 
+prefix := env_var_or_default("PREFIX", home_directory() + "/.local")
+
+# Install the binary onto PATH (default: ~/.local/bin)
+install: dist
+    mkdir -p {{prefix}}/bin
+    install -m 0755 {{bin}} {{prefix}}/bin/gaze
+    @echo "installed {{prefix}}/bin/gaze"
+
 # gitignored binary
 dist: build
     strip {{bin}}

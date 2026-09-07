@@ -79,11 +79,12 @@ brew install gaze
 gaze list
 ```
 
-Linux (from source). Needs a C compiler, `just`, and `libjpeg` (MJPEG cameras work without encoding; YUYV falls back to libjpeg):
+Linux (from source). Needs a C compiler, `just`, and `libjpeg` (MJPEG cameras work without encoding; YUYV falls back to libjpeg). Homebrew is macOS-only today.
 
 ```bash
 just build
-./bin/gaze list
+just install          # ~/.local/bin/gaze  (PREFIX=/usr/local just install)
+gaze list
 ```
 
 The operator must be in the `video` group (`/dev/video*`). Same CLI as macOS: `gaze see`, `gaze mcp`, optional PTZ when the UVC Camera Terminal exposes it (V4L2 `ZOOM`/`PAN`/`TILT` absolute).
