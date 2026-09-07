@@ -43,6 +43,7 @@ int gaze_set_mode(GazeCam *cam, uint8_t b0, uint8_t b1);
 
 const char *gaze_error(void);
 void gaze_set_error(const char *msg);
+void gaze_set_errorf(const char *fmt, int code);
 
 /* JPEG snapshot bound to cam's vid:pid. Caller free()s *jpeg. */
 int gaze_snap(GazeCam *cam, uint8_t **jpeg, size_t *len);

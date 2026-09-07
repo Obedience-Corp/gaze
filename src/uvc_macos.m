@@ -3,53 +3,20 @@
 #import <IOKit/usb/IOUSBLib.h>
 #import <IOKit/IOCFPlugIn.h>
 #include "gaze.h"
+#include "uvc_parse.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-int gaze_parse_devid(const char *s, uint16_t *vid, uint16_t *pid) {
-    unsigned v = 0, p = 0;
-    if (!s || sscanf(s, "%x:%x", &v, &p) != 2) return -1;
-    *vid = (uint16_t)v;
-    *pid = (uint16_t)p;
-    return 0;
-}
-
-#define RC_SET_CUR 0x01
-#define RC_GET_CUR 0x81
-#define RC_GET_MIN 0x82
-#define RC_GET_MAX 0x83
-#define RC_GET_LEN 0x85
-#define RC_GET_DEF 0x87
-
-#define CS_INTERFACE 0x24
-#define VC_INPUT_TERMINAL 0x02
-#define VC_EXTENSION_UNIT 0x06
-#define ITT_CAMERA 0x0201
-
-#define CT_ZOOM_ABSOLUTE 0x0B
-#define CT_PANTILT_ABSOLUTE 0x0D
-
-#define UVC_XU_INSTA360 9
-#define UVC_XU_MODE_SEL 2
 
 struct GazeCam {
     IOUSBDeviceInterface **dev;
     GazeInfo info;
 };
 
-static char g_err[160];
+static void set_err(const char *msg) { gaze_set_error(msg); }
 
-const char *gaze_error(void) { return g_err; }
-
-static void set_err(const char *msg) { snprintf(g_err, sizeof(g_err), "%s", msg); }
-
-void gaze_set_error(const char *msg) { set_err(msg); }
-
-static void set_errf(const char *fmt, IOReturn kr) {
-    snprintf(g_err, sizeof(g_err), "%s (0x%x)", fmt, kr);
-}
+static void set_errf(const char *fmt, IOReturn kr) { gaze_set_errorf(fmt, (int)kr); }
 
 static IOReturn uvc_req(IOUSBDeviceInterface **dev, uint8_t bm, uint8_t bReq, uint8_t sel,
                         uint8_t unit, uint8_t iface, void *data, uint16_t len) {
@@ -66,37 +33,7 @@ static IOReturn uvc_req(IOUSBDeviceInterface **dev, uint8_t bm, uint8_t bReq, ui
 
 static int parse_uvc(IOUSBConfigurationDescriptorPtr cfg, GazeInfo *info) {
     uint16_t total = NSSwapLittleShortToHost(cfg->wTotalLength);
-    uint8_t *p = (uint8_t *)cfg;
-    uint8_t *end = p + total;
-    uint8_t iface = 0xFF, cls = 0, sub = 0;
-    info->vc_iface = 0xFF;
-    info->camera_unit = 0xFF;
-    info->xu_unit = 0;
-    info->xu_mode_sel = 0;
-    info->xu_mode_len = 0;
-    while (p + 2 <= end) {
-        uint8_t len = p[0];
-        uint8_t typ = p[1];
-        if (len < 2 || p + len > end) break;
-        if (typ == 0x04 && len >= 9) {
-            iface = p[2];
-            cls = p[5];
-            sub = p[6];
-            if (cls == 14 && sub == 1) info->vc_iface = iface;
-        }
-        if (typ == CS_INTERFACE && cls == 14 && sub == 1 && len >= 8) {
-            uint8_t st = p[2];
-            if (st == VC_INPUT_TERMINAL) {
-                uint16_t tt = (uint16_t)(p[4] | (p[5] << 8));
-                if (tt == ITT_CAMERA) info->camera_unit = p[3];
-            } else if (st == VC_EXTENSION_UNIT && len >= 24 && p[3] == UVC_XU_INSTA360) {
-                info->xu_unit = p[3];
-                info->xu_mode_sel = UVC_XU_MODE_SEL;
-            }
-        }
-        p += len;
-    }
-    return (info->vc_iface != 0xFF && info->camera_unit != 0xFF) ? 0 : -1;
+    return uvc_parse_config((const uint8_t *)cfg, total, info);
 }
 
 static void fill_name(io_service_t svc, uint16_t vid, uint16_t pid, char *name, size_t namelen) {
@@ -217,7 +154,7 @@ int gaze_list(void) {
 }
 
 GazeCam *gaze_open(uint16_t vid, uint16_t pid) {
-    g_err[0] = 0;
+    gaze_set_error("");
     if (!vid && !pid) {
         const char *e = getenv("GAZE_DEV");
         if (e && e[0] && gaze_parse_devid(e, &vid, &pid) != 0) {
@@ -338,31 +275,18 @@ int gaze_zoom_range(GazeCam *cam, uint16_t *min, uint16_t *max, uint16_t *defv) 
     return 0;
 }
 
-static int32_t le_i32(const uint8_t *b) {
-    return (int32_t)((uint32_t)b[0] | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) |
-                     ((uint32_t)b[3] << 24));
-}
-
-static void put_le_i32(uint8_t *b, int32_t v) {
-    uint32_t u = (uint32_t)v;
-    b[0] = (uint8_t)(u & 0xff);
-    b[1] = (uint8_t)((u >> 8) & 0xff);
-    b[2] = (uint8_t)((u >> 16) & 0xff);
-    b[3] = (uint8_t)((u >> 24) & 0xff);
-}
-
 int gaze_get_pantilt(GazeCam *cam, int32_t *pan, int32_t *tilt) {
     uint8_t b[8] = {0};
     if (uvc_get(cam, CT_PANTILT_ABSOLUTE, cam->info.camera_unit, b, 8) != 0) return -1;
-    *pan = le_i32(b);
-    *tilt = le_i32(b + 4);
+    *pan = uvc_le_i32(b);
+    *tilt = uvc_le_i32(b + 4);
     return 0;
 }
 
 int gaze_set_pantilt(GazeCam *cam, int32_t pan, int32_t tilt) {
     uint8_t b[8];
-    put_le_i32(b, pan);
-    put_le_i32(b + 4, tilt);
+    uvc_put_le_i32(b, pan);
+    uvc_put_le_i32(b + 4, tilt);
     if (uvc_set(cam, CT_PANTILT_ABSOLUTE, cam->info.camera_unit, b, 8) != 0) return -1;
     int32_t gp = 0, gt = 0;
     if (gaze_get_pantilt(cam, &gp, &gt) != 0) return -1;
@@ -385,16 +309,16 @@ int gaze_pantilt_range(GazeCam *cam, int32_t *pmin, int32_t *pmax, int32_t *tmin
         set_errf("GET_MIN pantilt failed", kr);
         return -1;
     }
-    *pmin = le_i32(b);
-    *tmin = le_i32(b + 4);
+    *pmin = uvc_le_i32(b);
+    *tmin = uvc_le_i32(b + 4);
     kr = uvc_req(cam->dev, 0xA1, RC_GET_MAX, CT_PANTILT_ABSOLUTE, cam->info.camera_unit,
                  cam->info.vc_iface, b, 8);
     if (kr) {
         set_errf("GET_MAX pantilt failed", kr);
         return -1;
     }
-    *pmax = le_i32(b);
-    *tmax = le_i32(b + 4);
+    *pmax = uvc_le_i32(b);
+    *tmax = uvc_le_i32(b + 4);
     return 0;
 }
 
