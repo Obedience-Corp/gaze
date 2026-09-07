@@ -79,7 +79,15 @@ brew install gaze
 gaze list
 ```
 
-Linux (from source). Needs a C compiler, `just`, and `libjpeg` (MJPEG cameras work without encoding; YUYV falls back to libjpeg). Homebrew is macOS-only today.
+Linux (Homebrew on Linux). `v0.2.0` is macOS-only; Linux is on HEAD until the next tag:
+
+```bash
+brew tap Obedience-Corp/tap
+brew install --HEAD gaze
+gaze list
+```
+
+Linux (from source, no Homebrew). Compiler, `just`, and `libjpeg`:
 
 ```bash
 just build
