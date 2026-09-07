@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define GAZE_VERSION "0.2.0"
+#define GAZE_VERSION "0.3.0"
 
 typedef struct GazeCam GazeCam;
 

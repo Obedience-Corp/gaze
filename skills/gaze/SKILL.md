@@ -20,7 +20,7 @@ brew install gaze
 gaze list
 ```
 
-Linux: `just build` in this repo (V4L2). User must be in group `video`.
+Linux also: `just build && just install` (V4L2). User must be in group `video`.
 
 ## Plugin
 

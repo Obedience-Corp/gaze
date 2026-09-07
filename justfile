@@ -19,10 +19,15 @@ _build-Darwin:
         -framework CoreServices \
         -o {{bin}} src/uvc_parse.c src/uvc_macos.m src/see_macos.m src/json.c src/cmd.c src/mcp.c src/main.m
 
+# Homebrew jpeg-turbo and Debian libjpeg both ship libjpeg.pc.
+jpeg_cflags := `pkg-config --cflags libjpeg 2>/dev/null || true`
+jpeg_libs := `pkg-config --libs libjpeg 2>/dev/null || echo -ljpeg`
+
 _build-Linux:
     cc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-format-truncation \
+        {{jpeg_cflags}} \
         -o {{bin}} src/uvc_parse.c src/uvc_linux.c src/see_linux.c src/json.c src/cmd.c src/mcp.c \
-        -x c src/main.m -ljpeg
+        -x c src/main.m {{jpeg_libs}}
 
 # Run status
 status: build
@@ -56,6 +61,14 @@ test: test-protocol
 # Same hardware matrix, but fail if no UVC camera is on the wire.
 test-hw: build
     python3 tests/test_gaze.py --require-hw
+
+prefix := env_var_or_default("PREFIX", home_directory() + "/.local")
+
+# Install the binary onto PATH (default: ~/.local/bin)
+install: dist
+    mkdir -p {{prefix}}/bin
+    install -m 0755 {{bin}} {{prefix}}/bin/gaze
+    @echo "installed {{prefix}}/bin/gaze"
 
 # gitignored binary
 dist: build
