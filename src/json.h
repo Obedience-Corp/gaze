@@ -10,6 +10,7 @@ struct JVal {
     JType t;
     int b;
     char *s;     /* JSTR, and JNUM lexeme */
+    char *raw;   /* owned JSTR JSON lexeme, for lossless protocol ID echo */
     JVal *head;  /* JARR/JOBJ children */
     JVal *next;
     char *k;     /* object member key */

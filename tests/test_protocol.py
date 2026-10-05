@@ -61,6 +61,53 @@ class Mcp:
 
 
 class Protocol(unittest.TestCase):
+    def test_request_ids_round_trip(self):
+        # Success and error responses must remain valid JSON and echo the full ID.
+        ids = [
+            "",
+            "request-" + "x" * 2000,
+            'quoted"\\request',
+            "line\nreturn\rtab\t",
+            "controls\b\f\x00\x1f",
+            "café-東京-🎥",
+            1234567890123456789012345678901234567890123456789012345678901234567890,
+            1.25e30,
+            -1.25e-30,
+            None,
+        ]
+        mcp = Mcp()
+        try:
+            for request_id in ids:
+                for method in ("ping", "unknown-method", None):
+                    with self.subTest(request_id=repr(request_id)[:80], method=method):
+                        request = {"jsonrpc": "2.0", "id": request_id}
+                        if method is not None:
+                            request["method"] = method
+                        reply = mcp.send(request)
+                        self.assertEqual(reply["id"], request_id)
+                        if method == "ping":
+                            self.assertEqual(reply["result"], {})
+                        else:
+                            self.assertEqual(reply["error"]["code"],
+                                             -32600 if method is None else -32601)
+            self.assertEqual(mcp.call("ping")["result"], {})
+        finally:
+            mcp.close()
+
+    def test_invalid_id_tokens_are_parse_errors(self):
+        mcp = Mcp()
+        try:
+            for token in ('"\\q"', '"\\u12"', '"\\uZZZZ"', '"raw\tcontrol"',
+                          '01', '-01', '1.', '1e', '1e+'):
+                with self.subTest(token=token):
+                    reply = mcp.send('{"jsonrpc":"2.0","id":' + token +
+                                     ',"method":"ping"}')
+                    self.assertIsNone(reply["id"])
+                    self.assertEqual(reply["error"]["code"], -32700)
+            self.assertEqual(mcp.call("ping")["result"], {})
+        finally:
+            mcp.close()
+
     def test_version(self):
         p = subprocess.run([str(GAZE), "--version"], capture_output=True, text=True)
         self.assertEqual(p.returncode, 0)
