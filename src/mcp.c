@@ -37,11 +37,14 @@ static void reply_ok(const char *id, const char *body) {
 }
 
 static void reply_err(const char *id, int code, const char *msg) {
-    char line[1024];
-    snprintf(line, sizeof(line),
+    size_t n = strlen(id) + strlen(msg) + 96;
+    char *line = malloc(n);
+    if (!line) return;
+    snprintf(line, n,
              "{\"jsonrpc\":\"2.0\",\"id\":%s,\"error\":{\"code\":%d,\"message\":\"%s\"}}",
              id, code, msg);
     emit(line);
+    free(line);
 }
 
 static char *b64enc(const uint8_t *src, size_t n, size_t *outn) {
@@ -86,22 +89,10 @@ static void json_escape(const char *in, char *out, size_t n) {
     out[i] = 0;
 }
 
-static void id_emit(const JVal *idv, char *out, size_t n) {
-    if (!idv || idv->t == JNULL) {
-        snprintf(out, n, "null");
-        return;
-    }
-    if (idv->t == JNUM && idv->s) {
-        snprintf(out, n, "%s", idv->s);
-        return;
-    }
-    if (idv->t == JSTR && idv->s) {
-        char esc[128];
-        json_escape(idv->s, esc, sizeof(esc));
-        snprintf(out, n, "\"%s\"", esc);
-        return;
-    }
-    snprintf(out, n, "null");
+static const char *id_emit(const JVal *idv) {
+    if (idv && idv->t == JNUM && idv->s) return idv->s;
+    if (idv && idv->t == JSTR && idv->raw) return idv->raw;
+    return "null";
 }
 
 static void tool_text(const char *id, const char *text, int is_err) {
@@ -218,8 +209,7 @@ int gaze_mcp(uint16_t vid, uint16_t pid) {
             reply_err("null", -32700, "parse error");
             continue;
         }
-        char id[64];
-        id_emit(jobj(root, "id"), id, sizeof(id));
+        const char *id = id_emit(jobj(root, "id"));
         const char *method = jstr(jobj(root, "method"));
         if (!method) {
             if (jobj(root, "id")) reply_err(id, -32600, "no method");

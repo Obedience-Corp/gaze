@@ -27,7 +27,6 @@ static char *dupn(const char *s, size_t n) {
 static const char *parse_str(const char *s, char **out) {
     if (*s != '"') return NULL;
     s++;
-    const char *start = s;
     char buf[4096];
     size_t n = 0;
     while (*s && *s != '"') {
@@ -38,13 +37,20 @@ static const char *parse_str(const char *s, char **out) {
             if (c == 'n') c = '\n';
             else if (c == 't') c = '\t';
             else if (c == 'r') c = '\r';
+            else if (c == 'b') c = '\b';
+            else if (c == 'f') c = '\f';
+            else if (c == 'u') {
+                for (int i = 0; i < 4; i++) {
+                    if (!isxdigit((unsigned char)s[i])) return NULL;
+                }
+            } else if (c != '"' && c != '\\' && c != '/') return NULL;
             buf[n++] = c;
         } else {
+            if ((unsigned char)*s < 0x20) return NULL;
             buf[n++] = *s++;
         }
     }
     if (*s != '"') return NULL;
-    (void)start;
     *out = dupn(buf, n);
     return *out ? s + 1 : NULL;
 }
@@ -53,9 +59,17 @@ static const char *parse_num(const char *s, JVal *v) {
     const char *b = s;
     if (*s == '-') s++;
     if (!isdigit((unsigned char)*s)) return NULL;
-    while (isdigit((unsigned char)*s)) s++;
+    if (*s == '0') s++;
+    else while (isdigit((unsigned char)*s)) s++;
     if (*s == '.') {
         s++;
+        if (!isdigit((unsigned char)*s)) return NULL;
+        while (isdigit((unsigned char)*s)) s++;
+    }
+    if (*s == 'e' || *s == 'E') {
+        s++;
+        if (*s == '+' || *s == '-') s++;
+        if (!isdigit((unsigned char)*s)) return NULL;
         while (isdigit((unsigned char)*s)) s++;
     }
     v->s = dupn(b, (size_t)(s - b));
@@ -117,11 +131,16 @@ static const char *parse_arr(const char *s, JVal *v) {
 
 static const char *parse_val(const char *s, JVal **out) {
     s = skip(s);
+    const char *start = s;
     JVal *v = NULL;
     if (*s == '"') {
         v = node(JSTR);
         if (!v) return NULL;
         s = parse_str(s, &v->s);
+        if (s) {
+            v->raw = dupn(start, (size_t)(s - start));
+            if (!v->raw) s = NULL;
+        }
     } else if (*s == '{') {
         v = node(JOBJ);
         if (!v) return NULL;
@@ -178,6 +197,7 @@ void jfree(JVal *v) {
         JVal *n = v->next;
         jfree(v->head);
         free(v->s);
+        free(v->raw);
         free(v->k);
         free(v);
         v = n;
