@@ -11,6 +11,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: deps
         run: |
+          # ubuntu-latest preinstalls packages.microsoft.com. That repo 403s
+          # intermittently, and apt-get update then exits 100.
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list \
+                     /etc/apt/sources.list.d/microsoft-prod.sources
           sudo apt-get update
           sudo apt-get install -y gcc libjpeg-dev
           curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
